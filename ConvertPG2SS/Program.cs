@@ -45,7 +45,7 @@ namespace ConvertPG2SS {
 #if DEBUG
 			_param.WriteParametersToLog();
 #endif
-			// var success = ProcessImportFiles.Go();
+			Process.Do();
 
 			_param.Dispose();
 			_log.Info(string.Empty);

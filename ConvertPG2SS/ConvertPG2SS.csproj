@@ -59,10 +59,11 @@
   <ItemGroup>
     <Compile Include="Common\Constants.cs" />
     <Compile Include="Helpers\CryptoAes.cs" />
-    <Compile Include="Helpers\Database.cs" />
+    <Compile Include="Helpers\Postgres.cs" />
     <Compile Include="Helpers\General.cs" />
     <Compile Include="Interfaces\IBLogger.cs" />
     <Compile Include="Interfaces\IParameters.cs" />
+    <Compile Include="Process.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Services\BLoggerService.cs" />
@@ -76,7 +77,6 @@
     <None Include="ConvertPG2SS.ini">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="ClassDiagram1.cd" />
     <None Include="NLog.config">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

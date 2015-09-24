@@ -15,12 +15,13 @@ using System.Data;
 using System.Globalization;
 using ConvertPG2SS.Common;
 using ConvertPG2SS.Interfaces;
-using ConvertPG2SS.Services;
 using Npgsql;
 
 namespace ConvertPG2SS.Helpers {
 	internal static class Postgres {
-		private static readonly IBLogger Log = new BLoggerService();
+
+		//private static readonly IBLogger Log = new BLoggerService();
+		private static readonly IBLogger Log = Program.GetInstance<IBLogger>();
 
 		/// <summary>
 		///     Executes a SQL statement.
@@ -160,6 +161,89 @@ namespace ConvertPG2SS.Helpers {
 				cmd.Dispose();
 			}
 			return test == 1;
+		}
+
+		internal static string SsDataType(string pgDataType) {
+			var p = pgDataType.IndexOf('[');
+			var dt = p >= 0 ? pgDataType.Substring(0, p) : pgDataType;
+
+			switch (dt) {
+				case "bigint":
+					return "bigint";
+				case "bytea":
+					return "binary";
+				case "boolean":
+					return "bit";
+				case "char":
+					return "char";
+				case "character":
+					return "character";
+				case "character varying":
+					return "varchar";
+				case "date":
+					return "date";
+				case "timestamp":
+				case "timestamp without time zone":
+					return "datetime2";
+				case "timestamp with time zone":
+					return "datetimeoffset";
+				case "dec":
+					return "dec";
+				case "decimal":
+					return "decimal";
+				case "double precision":
+					return "double precision";
+				case "int":
+					return "int";
+				case "integer":
+					return "integer";
+				case "money":
+					return "money";
+				case "numeric":
+					return "numeric";
+				case "real":
+					return "real";
+				case "smallint":
+					return "smallint";
+				case "text":
+					return "text";
+				case "time":
+					return "time";
+				case "xml":
+					return "xml";
+				default:
+					return "";
+			}
+		}
+
+		internal static string SsDefaultValue(string def) {
+			var p = def.IndexOf("::", StringComparison.Ordinal);
+			string typ;
+			string val;
+
+			if (p > 0) {
+				typ = def.Substring(p + 2);
+				val = def.Substring(0, p);
+			}
+			else {
+				typ = "";
+				val = def;
+			}
+
+			switch (typ) {
+				case "":
+					switch (val) {
+						case "now()":
+							return "GETDATE()";
+						default:
+							return val;
+					}
+				case "bpchar":
+				case "date":
+					return val;
+				default:
+					return null;
+			}
 		}
 	}
 }
