@@ -167,7 +167,7 @@ namespace ConvertPG2SS.Services {
 			}
 
 			// Free any unmanaged objects here.
-			//
+
 			_disposed = true;
 		}
 
@@ -213,18 +213,20 @@ namespace ConvertPG2SS.Services {
 				conn.Open();
 				return conn;
 			}
-			catch (NpgsqlException ex) {
-				if (conn != null) {
-					var parser = new NpgsqlConnectionStringBuilder(conn.ConnectionString);
-					var host = parser.Host;
-					var port = parser.Port;
-					var msg = string.Format(
-						CultureInfo.InvariantCulture,
-						"Host: {0}:{1}\n{2}",
-						host,
-						port,
-						ex.Message);
-					_log.Write('E', Constants.LogTsType, msg);
+			catch (Exception ex) {
+				if (ex is NpgsqlException) {
+					if (conn != null) {
+						var parser = new NpgsqlConnectionStringBuilder(conn.ConnectionString);
+						var host = parser.Host;
+						var port = parser.Port;
+						var msg = string.Format(
+							CultureInfo.InvariantCulture,
+							"Host: {0}:{1}\n{2}",
+							host,
+							port,
+							ex.Message);
+						_log.Write('E', Constants.LogTsType, msg);
+					}
 				}
 				_log.WriteEx('E', Constants.LogTsType, ex);
 				return null;
@@ -284,7 +286,6 @@ namespace ConvertPG2SS.Services {
 						  _param[keyComp + "commandtimeout"] + ";");
 			}
 
-			// sb.Append("Preload Reader = true;");
 			return sb.ToString();
 		}
 	}
