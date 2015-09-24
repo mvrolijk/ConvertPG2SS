@@ -38,20 +38,5 @@ namespace ConvertPG2SS.Common {
 		public const char LogWarning = 'W';
 		public const char LogError   = 'E';
 		public const char Logfatal   = 'I';
-
-		// Error codes
-		//public enum ErrorCodes {
-		//	FolderNotFound     =   1,
-		//	NoRowsFound        =   2,
-		//	NoTablesSelected   =   3,
-		//	NoImportsProcessed =   4,
-		//	RunDateNotFound    =   5,
-		//	RunDateImportFile  =   6,
-		//	RecordsizeError    =   7,
-		//	NullValue          =   8,
-		//	RunDateError       =   9,
-		//	EarlyRunDate       =  10,
-		//	OtherError         = 999
-		//}
 	}
 }

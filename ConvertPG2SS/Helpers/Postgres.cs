@@ -19,7 +19,7 @@ using ConvertPG2SS.Services;
 using Npgsql;
 
 namespace ConvertPG2SS.Helpers {
-	internal static class Database {
+	internal static class Postgres {
 		private static readonly IBLogger Log = new BLoggerService();
 
 		/// <summary>
