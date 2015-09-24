@@ -86,8 +86,8 @@ namespace ConvertPG2SS {
 				_params.Get("other.work_path").ToString(), 
 				"create_tables.sql");
 
-			using (var cmd = new NpgsqlCommand(sql, frmConn))
-			using (var sw = new StreamWriter(path, false, Encoding.Default)) {
+			using (var sw = new StreamWriter(path, false, Encoding.Default)) 
+			using (var cmd = new NpgsqlCommand(sql, frmConn)) {
 				sw.PrepCreateTable();
 
 				var savedSchema = "";
@@ -118,7 +118,10 @@ namespace ConvertPG2SS {
 					sw.Write(GenerateColumn(reader, out def));
 					if (!string.IsNullOrEmpty(def[0])) defaults.Add(def);
 				}
-				if (!string.IsNullOrEmpty(savedTable)) sw.CloseCreateTable(defaults);
+				if (!string.IsNullOrEmpty(savedTable)) {
+					sw.CloseCreateTable(defaults);
+					sw.WriteTableDesc();
+				}
 				sw.WriteLine("COMMIT TRANSACTION;");
 			}
 
@@ -298,6 +301,30 @@ namespace ConvertPG2SS {
 					sw.WriteLine();
 				}
 			}
+		}
+
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="sw"></param>
+		private static void WriteTableDesc(this StreamWriter sw) {
+			var frmConn = (NpgsqlConnection)_params.Get(Constants.FrmConnection);
+
+			const string sql = 
+				@"SELECT nspname, relname, description
+				FROM	pg_description
+						JOIN pg_class ON pg_description.objoid = pg_class.oid
+						JOIN pg_namespace ON pg_class.relnamespace = pg_namespace.oid
+				WHERE  objsubid = 0 AND nspname NOT IN('pg_catalog', 'information_schema')
+				ORDER  BY nspname ASC, relname ASC";
+
+			using (var cmd = new NpgsqlCommand(sql, frmConn)) {
+				var reader = cmd.ExecuteReader();
+				while (reader.Read()) {
+					sw.WriteLine(reader["nspname"]);
+				}
+			}
+
 		}
 
 		/// <summary>
