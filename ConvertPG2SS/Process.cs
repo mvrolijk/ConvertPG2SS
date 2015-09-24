@@ -94,35 +94,36 @@ namespace ConvertPG2SS {
 				var savedTable = "";
 				var defaults = new List<string[]>();
 
-				var reader = cmd.ExecuteReader();
-				while (reader.Read()) {
-					var schema = reader["nspname"].ToString();
-					var table = reader["relname"].ToString();
+				using (var reader = cmd.ExecuteReader()) {
+					while (reader.Read()) {
+						var schema = reader["nspname"].ToString();
+						var table = reader["relname"].ToString();
 
-					// Schema or table changed: close table defenition.
-					if (!savedSchema.Equals(schema) || !savedTable.Equals(table)) {
-						if (!savedSchema.Equals(schema)) schemas.Add(schema);
-						if (!string.IsNullOrEmpty(savedTable)) {
-							CloseCreateTable(sw, defaults);
-							defaults.Clear();
+						// Schema or table changed: close table defenition.
+						if (!savedSchema.Equals(schema) || !savedTable.Equals(table)) {
+							if (!savedSchema.Equals(schema)) schemas.Add(schema);
+							if (!string.IsNullOrEmpty(savedTable)) {
+								CloseCreateTable(sw, defaults);
+								defaults.Clear();
+							}
+							savedSchema = schema;
+							savedTable = table;
+
+							sw.OpenCreateTable(schema, table);
 						}
-						savedSchema = schema;
-						savedTable = table;
-						
-						sw.OpenCreateTable(schema, table);
-					}
-					else sw.WriteLine(",");
+						else sw.WriteLine(",");
 
-					// Generate column definition.
-					string[] def;
-					sw.Write(GenerateColumn(reader, out def));
-					if (!string.IsNullOrEmpty(def[0])) defaults.Add(def);
+						// Generate column definition.
+						string[] def;
+						sw.Write(GenerateColumn(reader, out def));
+						if (!string.IsNullOrEmpty(def[0])) defaults.Add(def);
+					}
 				}
 				if (!string.IsNullOrEmpty(savedTable)) {
 					sw.CloseCreateTable(defaults);
 					sw.WriteTableDesc();
+					sw.WriteLine("COMMIT TRANSACTION;");
 				}
-				sw.WriteLine("COMMIT TRANSACTION;");
 			}
 
 			if (schemas.Count == 0) return;
@@ -310,21 +311,32 @@ namespace ConvertPG2SS {
 		private static void WriteTableDesc(this StreamWriter sw) {
 			var frmConn = (NpgsqlConnection)_params.Get(Constants.FrmConnection);
 
-			const string sql = 
-				@"SELECT nspname, relname, description
-				FROM	pg_description
-						JOIN pg_class ON pg_description.objoid = pg_class.oid
-						JOIN pg_namespace ON pg_class.relnamespace = pg_namespace.oid
-				WHERE  objsubid = 0 AND nspname NOT IN('pg_catalog', 'information_schema')
-				ORDER  BY nspname ASC, relname ASC";
+			const string sql =
+				@"SELECT n.nspname, c.relname, d.description
+				FROM	pg_description d
+						JOIN pg_class c ON d.objoid = c.oid
+						JOIN pg_namespace n ON c.relnamespace = n.oid
+				WHERE	d.objsubid = 0 AND c.relkind = 'r' 
+						AND n.nspname NOT IN('pg_catalog', 'information_schema')
+				ORDER	BY n.nspname ASC, c.relname ASC";
 
 			using (var cmd = new NpgsqlCommand(sql, frmConn)) {
-				var reader = cmd.ExecuteReader();
-				while (reader.Read()) {
-					sw.WriteLine(reader["nspname"]);
+				using (var reader = cmd.ExecuteReader()) {
+					while (reader.Read()) {
+						var comment = reader["description"].ToString().Trim();
+						if (string.IsNullOrEmpty(comment)) continue;
+
+						sw.Write("EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'");
+						sw.WriteLine(comment + "' ,");
+						sw.Write("@level0type=N'SCHEMA',@level0name=N'");
+						sw.WriteLine(reader["nspname"] + "' ,");
+						sw.Write("@level1type=N'TABLE',@level1name=N'");
+						sw.WriteLine(reader["relname"] + "'");
+						sw.WriteLine("GO");
+						sw.WriteLine();
+					}
 				}
 			}
-
 		}
 
 		/// <summary>
