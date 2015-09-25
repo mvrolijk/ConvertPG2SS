@@ -16,7 +16,7 @@ using System.Windows;
 using ConvertPG2SS.Common;
 using ConvertPG2SS.Helpers;
 
-namespace BIASecurity {
+namespace Security {
 	/// <summary>
 	/// Interaction logic for MainWindow.xaml
 	/// </summary>
