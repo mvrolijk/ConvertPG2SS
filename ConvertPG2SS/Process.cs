@@ -87,43 +87,57 @@ namespace ConvertPG2SS {
 				"create_tables.sql");
 
 			using (var sw = new StreamWriter(path, false, Encoding.Default)) 
-			using (var cmd = new NpgsqlCommand(sql, frmConn)) {
+			using (var da = new NpgsqlDataAdapter(sql, frmConn)) {
+				var dt = new DataTable();
+				da.Fill(dt);
+
+				if (dt.Rows.Count == 0) return;
+
 				sw.PrepCreateTable();
 
 				var savedSchema = "";
 				var savedTable = "";
 				var defaults = new List<string[]>();
 
-				using (var reader = cmd.ExecuteReader()) {
-					while (reader.Read()) {
-						var schema = reader["nspname"].ToString();
-						var table = reader["relname"].ToString();
+				foreach (DataRow row in dt.Rows) {
+					var schema = row["nspname"].ToString();
+					var table = row["relname"].ToString();
 
-						// Schema or table changed: close table defenition.
-						if (!savedSchema.Equals(schema) || !savedTable.Equals(table)) {
-							if (!savedSchema.Equals(schema)) schemas.Add(schema);
-							if (!string.IsNullOrEmpty(savedTable)) {
-								CloseCreateTable(sw, defaults);
-								defaults.Clear();
-							}
-							savedSchema = schema;
-							savedTable = table;
-
-							sw.OpenCreateTable(schema, table);
+					// Schema or table changed: close table defenition.
+					if (!savedSchema.Equals(schema) || !savedTable.Equals(table)) {
+						if (!savedSchema.Equals(schema)) schemas.Add(schema);
+						if (!string.IsNullOrEmpty(savedTable)) {
+							CloseCreateTable(sw, defaults);
+							defaults.Clear();
 						}
-						else sw.WriteLine(",");
+						savedSchema = schema;
+						savedTable = table;
 
-						// Generate column definition.
-						string[] def;
-						sw.Write(GenerateColumn(reader, out def));
-						if (!string.IsNullOrEmpty(def[0])) defaults.Add(def);
+						sw.OpenCreateTable(schema, table);
 					}
+					else sw.WriteLine(",");
+
+					// Generate column definition.
+					string[] def;
+					var dim = 0;
+
+					if ((int)row["attndims"] > 0) {
+						dim = Postgres.CalcArrayDim(
+							row["nspname"].ToString(),
+							row["relname"].ToString(),
+							row["attname"].ToString(),
+							frmConn);
+					}
+					sw.GenerateColumn(row, dim, out def);
+					if (!string.IsNullOrEmpty(def[0])) defaults.Add(def);
 				}
+
 				if (!string.IsNullOrEmpty(savedTable)) {
 					sw.CloseCreateTable(defaults);
 					sw.WriteTableDesc();
 					sw.WriteLine("COMMIT TRANSACTION;");
 				}
+				dt.Dispose();
 			}
 
 			if (schemas.Count == 0) return;
@@ -134,48 +148,72 @@ namespace ConvertPG2SS {
 		/// <summary>
 		/// 
 		/// </summary>
-		/// <param name="reader"></param>
+		/// <param name="sw"></param>
+		/// <param name="row"></param>
+		/// <param name="dim"></param>
 		/// <param name="def"></param>
 		/// <returns></returns>
-		private static string GenerateColumn(IDataRecord reader, out string[] def) {
+		private static void GenerateColumn(
+			this TextWriter sw,
+			DataRow row,
+			int dim,
+			out string[] def) 
+		{
 			var sb = new StringBuilder();
+			var fmt = "";
+			var ext = "";
+			var dt = Postgres.SsDataType(row["regtype"].ToString());
+			var tmpDef = new string[5];
 
-			var dt = Postgres.SsDataType(reader["regtype"].ToString());
-
-			sb.Append(Tab + "[" + reader["attname"]  + "]");
-			sb.Append(" [" + dt + "]");
-
-			// Text field has a size.
-			if (reader["max_char_size"] != DBNull.Value) {
-				sb.Append("(");
-				sb.Append(((int)reader["max_char_size"]).ToString().Trim());
-				sb.Append(")");
+			if (dim < 0) dim = 0;
+			if (dim > 0) {
+				if (dim > 99) fmt = "D3";
+				else if (dim > 9) fmt = "D2";
+				else fmt = "D1";
 			}
-			// Number field has precision and scale.
-			else if (reader["numeric_precision"] != DBNull.Value) {
-				if (dt == "numeric" || dt == "dec" || dt == "decimal") {
-					sb.Append("(" + ((int) reader["numeric_precision"]).ToString().Trim());
-					var scale = (int) reader["numeric_scale"];
-					if (scale > 0) sb.Append("," + scale);
+
+			for (var i = 0; i <= dim; i++) {
+				if (dim > 0) ext = (i + 1).ToString(fmt);
+				if (i > 0) sw.WriteLine(",");
+
+				sb.Append(Tab + "[" + row["attname"] + ext + "]");
+				sb.Append(" [" + dt + "]");
+
+				// Text field has a size.
+				if (row["max_char_size"] != DBNull.Value) {
+					sb.Append("(");
+					sb.Append(((int)row["max_char_size"]).ToString().Trim());
 					sb.Append(")");
 				}
-			}
+				// Number field has precision and scale.
+				else if (row["numeric_precision"] != DBNull.Value) {
+					if (dt == "numeric" || dt == "dec" || dt == "decimal") {
+						sb.Append("(" + ((int)row["numeric_precision"]).ToString().Trim());
+						var scale = (int)row["numeric_scale"];
+						if (scale > 0) sb.Append("," + scale);
+						sb.Append(")");
+					}
+				}
 
-			if (((bool)reader["attnotnull"])) sb.Append(" NOT NULL");
-			else sb.Append(" NULL");
+				if (((bool)row["attnotnull"])) sb.Append(" NOT NULL");
+				else sb.Append(" NULL");
 
-			// Store information to generate default and comment definitions later.
-			var tmpDef = new string[5];
-			if (reader["adsrc"] != DBNull.Value || reader["comment"] != DBNull.Value) {
-				tmpDef[0] = reader["nspname"].ToString();
-				tmpDef[1] = reader["relname"].ToString();
-				tmpDef[2] = reader["attname"].ToString();
-				if (reader["adsrc"] != DBNull.Value) tmpDef[3] = reader["adsrc"].ToString();
-				if (reader["comment"] != DBNull.Value) tmpDef[4] = reader["comment"].ToString();
+				if (i == 0) {
+					// Store information to generate default and comment definitions later.
+					if (row["adsrc"] != DBNull.Value || row["comment"] != DBNull.Value) {
+						tmpDef[0] = row["nspname"].ToString();
+						tmpDef[1] = row["relname"].ToString();
+						tmpDef[2] = row["attname"] + ext;
+						if (row["adsrc"] != DBNull.Value) tmpDef[3] = row["adsrc"].ToString();
+						if (row["comment"] != DBNull.Value) tmpDef[4] = row["comment"].ToString();
+					}
+				}
+
+				sw.Write(sb.ToString());
+				sb.Clear();
 			}
 
 			def = tmpDef;
-			return sb.ToString();
 		}
 
 		/// <summary>
@@ -201,7 +239,7 @@ namespace ConvertPG2SS {
 		/// <param name="schema"></param>
 		/// <param name="table"></param>
 		private static void OpenCreateTable(
-			this StreamWriter sw, 
+			this TextWriter sw, 
 			string schema, 
 			string table) 
 		{
@@ -218,7 +256,7 @@ namespace ConvertPG2SS {
 		/// <param name="sw"></param>
 		/// <param name="defaults"></param>
 		private static void CloseCreateTable(
-			this StreamWriter sw,  
+			this TextWriter sw,  
 			IReadOnlyCollection<string[]> defaults) 
 		{
 			sw.WriteLine();
@@ -232,11 +270,11 @@ namespace ConvertPG2SS {
 		}
 
 		/// <summary>
-		/// 
+		///     Add default constraint for table. 
 		/// </summary>
 		/// <param name="sw"></param>
 		/// <param name="defaults"></param>
-		private static void WriteDefaults(this StreamWriter sw, IEnumerable<string[]> defaults) {
+		private static void WriteDefaults(this TextWriter sw, IEnumerable<string[]> defaults) {
 			var first = true;
 
 			foreach (var def in defaults) {
@@ -253,7 +291,8 @@ namespace ConvertPG2SS {
 				}
 
 				sw.Write("ALTER TABLE [" + def[0] + "].[");
-				sw.Write(def[1] + "] ADD DEFAULT ");
+				sw.Write(def[1] + "] ADD CONSTRAINT DF_");
+				sw.Write(def[1] + "_" + def[2] + " DEFAULT ");
 				sw.WriteLine("(" + defVal + ") FOR [" + def[2] + "]");
 				sw.WriteLine("GO");
 				sw.WriteLine();
@@ -266,7 +305,7 @@ namespace ConvertPG2SS {
 		/// <param name="sw"></param>
 		/// <param name="defaults"></param>
 		private static void WriteColumnComments(
-			this StreamWriter sw,
+			this TextWriter sw,
 			IEnumerable<string[]> defaults) 
 		{
 			foreach (var def in defaults.Where(def => !string.IsNullOrEmpty(def[4]))) {
@@ -337,6 +376,25 @@ namespace ConvertPG2SS {
 					}
 				}
 			}
+		}
+
+		private static void BuildIndexes(this TextWriter sw) {
+			var frmConn = (NpgsqlConnection)_params.Get(Constants.FrmConnection);
+
+			const string sql =
+				@"SELECT n.nspname, c.relname, d.relname, i.indisprimary, indisunique, a.attname
+				FROM	pg_index i
+						left join pg_attribute a
+							  ON a.attrelid = i.indrelid
+								 AND a.attnum = ANY ( i.indkey )
+						left join pg_class c
+							  ON c.oid = i.indrelid
+						left join pg_class d
+							  ON d.oid = i.indexrelid
+						left join pg_namespace n
+							  ON n.oid = c.relnamespace
+				WHERE  n.nspname NOT IN('pg_toast', 'pg_catalog', 'information_schema')
+				ORDER  BY n.nspname ASC, c.relname ASC, d.relname ASC, a.attnum ";
 		}
 
 		/// <summary>
