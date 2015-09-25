@@ -6,7 +6,7 @@
 // <date>2015-09-23</date>
 // <time>20:49</time>
 //
-// <summary>Process the Postgres db that will be converted.</summary>
+// <summary>Process the Postgres db schema that will be converted.</summary>
 //----------------------------------------------------------------------------------------
 
 using System;
@@ -21,10 +21,9 @@ using ConvertPG2SS.Interfaces;
 using Npgsql;
 
 namespace ConvertPG2SS {
-	static class Process {
+	static class ProcessSchema {
 		private static IBLogger _log;
 		private static IParameters _params;
-		private const char Tab = '\t';
 
 		/// <summary>
 		/// 
@@ -33,7 +32,8 @@ namespace ConvertPG2SS {
 			_log = Program.GetInstance<IBLogger>();
 			_params = Program.GetInstance<IParameters>();
 
-			if (!CheckPaths()) return;
+			var frmConn = (NpgsqlConnection)_params.Get(Constants.FrmConnection);
+			Postgres.CreateTempAryTables(frmConn);
 
 			#region PostgreSQL query to retrieve coloumn information from pg_catalog.
 			const string sql = 
@@ -77,10 +77,9 @@ namespace ConvertPG2SS {
 					LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
 				WHERE 
 					c.relkind = 'r'::""char""
-					AND n.nspname NOT IN('pg_catalog', 'information_schema')
+					AND n.nspname NOT IN('pg_catalog', 'information_schema', 'public')
 				ORDER BY n.nspname ASC, c.relname ASC, a.attnum ASC";
 #endregion
-			var frmConn = (NpgsqlConnection) _params.Get(Constants.FrmConnection);
 			var schemas = new List<string>();
 			var path = Path.Combine(
 				_params.Get("other.work_path").ToString(), 
@@ -88,6 +87,8 @@ namespace ConvertPG2SS {
 
 			using (var sw = new StreamWriter(path, false, Encoding.Default)) 
 			using (var da = new NpgsqlDataAdapter(sql, frmConn)) {
+				//sw.BuildIndexes();
+				//return;
 				var dt = new DataTable();
 				da.Fill(dt);
 
@@ -112,6 +113,7 @@ namespace ConvertPG2SS {
 						}
 						savedSchema = schema;
 						savedTable = table;
+						Postgres.InsertTempTable(savedSchema, savedTable, frmConn);
 
 						sw.OpenCreateTable(schema, table);
 					}
@@ -127,6 +129,12 @@ namespace ConvertPG2SS {
 							row["relname"].ToString(),
 							row["attname"].ToString(),
 							frmConn);
+						Postgres.InsertTempAryTableRec(
+							row["nspname"].ToString(),
+							row["relname"].ToString(),
+							row["attname"].ToString(),
+							dim,
+							frmConn);
 					}
 					sw.GenerateColumn(row, dim, out def);
 					if (!string.IsNullOrEmpty(def[0])) defaults.Add(def);
@@ -134,7 +142,8 @@ namespace ConvertPG2SS {
 
 				if (!string.IsNullOrEmpty(savedTable)) {
 					sw.CloseCreateTable(defaults);
-					sw.WriteTableDesc();
+					sw.WriteTableDesc(frmConn);
+					sw.BuildIndexes(frmConn);
 					sw.WriteLine("COMMIT TRANSACTION;");
 				}
 				dt.Dispose();
@@ -164,19 +173,21 @@ namespace ConvertPG2SS {
 			var ext = "";
 			var dt = Postgres.SsDataType(row["regtype"].ToString());
 			var tmpDef = new string[5];
+			var aryDim = dim;
 
-			if (dim < 0) dim = 0;
-			if (dim > 0) {
-				if (dim > 99) fmt = "D3";
-				else if (dim > 9) fmt = "D2";
+			if (aryDim <= 1) aryDim = 0;
+			if (aryDim > 0) {
+				if (aryDim > 99) fmt = "D3";
+				else if (aryDim > 9) fmt = "D2";
 				else fmt = "D1";
+				aryDim--;
 			}
 
-			for (var i = 0; i <= dim; i++) {
-				if (dim > 0) ext = (i + 1).ToString(fmt);
+			for (var i = 0; i <= aryDim; i++) {
+				if (aryDim > 0) ext = (i + 1).ToString(fmt);
 				if (i > 0) sw.WriteLine(",");
 
-				sb.Append(Tab + "[" + row["attname"] + ext + "]");
+				sb.Append(Constants.Tab + "[" + row["attname"] + ext + "]");
 				sb.Append(" [" + dt + "]");
 
 				// Text field has a size.
@@ -220,7 +231,7 @@ namespace ConvertPG2SS {
 		/// 
 		/// </summary>
 		/// <param name="sw"></param>
-		private static void PrepCreateTable(this StreamWriter sw) {
+		private static void PrepCreateTable(this TextWriter sw) {
 			sw.WriteLine("USE " + _params.Get("mssql.database") + ";");
 			sw.WriteLine("GO");
 			sw.WriteLine();
@@ -347,25 +358,25 @@ namespace ConvertPG2SS {
 		/// 
 		/// </summary>
 		/// <param name="sw"></param>
-		private static void WriteTableDesc(this StreamWriter sw) {
-			var frmConn = (NpgsqlConnection)_params.Get(Constants.FrmConnection);
-
+		/// <param name="conn"></param>
+		private static void WriteTableDesc(this TextWriter sw, NpgsqlConnection conn) {
 			const string sql =
 				@"SELECT n.nspname, c.relname, d.description
 				FROM	pg_description d
 						JOIN pg_class c ON d.objoid = c.oid
 						JOIN pg_namespace n ON c.relnamespace = n.oid
 				WHERE	d.objsubid = 0 AND c.relkind = 'r' 
-						AND n.nspname NOT IN('pg_catalog', 'information_schema')
+						AND n.nspname NOT IN('pg_catalog', 'information_schema', 'public')
 				ORDER	BY n.nspname ASC, c.relname ASC";
 
-			using (var cmd = new NpgsqlCommand(sql, frmConn)) {
+			using (var cmd = new NpgsqlCommand(sql, conn)) {
 				using (var reader = cmd.ExecuteReader()) {
 					while (reader.Read()) {
 						var comment = reader["description"].ToString().Trim();
 						if (string.IsNullOrEmpty(comment)) continue;
 
-						sw.Write("EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'");
+						sw.Write(
+							"EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'");
 						sw.WriteLine(comment + "' ,");
 						sw.Write("@level0type=N'SCHEMA',@level0name=N'");
 						sw.WriteLine(reader["nspname"] + "' ,");
@@ -378,44 +389,127 @@ namespace ConvertPG2SS {
 			}
 		}
 
-		private static void BuildIndexes(this TextWriter sw) {
-			var frmConn = (NpgsqlConnection)_params.Get(Constants.FrmConnection);
-
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="sw"></param>
+		/// <param name="conn"></param>
+		private static void BuildIndexes(this TextWriter sw, NpgsqlConnection conn) {
+			// option column values:
+			// INDOPTION_DESC			0x0001 = values are in reverse order (DESC)
+			// INDOPTION_NULLS_FIRST	0x0002 = NULLs are first instead of last
 			const string sql =
-				@"SELECT n.nspname, c.relname, d.relname, i.indisprimary, indisunique, a.attname
+				@"SELECT n.nspname, c.relname table_name, d.relname index_name, i.indisprimary,
+						i.indisunique, a.attname, i.indoption[a.attnum - 1] as option
 				FROM	pg_index i
-						left join pg_attribute a
+						LEFT JOIN pg_attribute a
 							  ON a.attrelid = i.indrelid
 								 AND a.attnum = ANY ( i.indkey )
-						left join pg_class c
+						LEFT JOIN pg_class c
 							  ON c.oid = i.indrelid
-						left join pg_class d
+						LEFT JOIN pg_class d
 							  ON d.oid = i.indexrelid
-						left join pg_namespace n
+						LEFT JOIN pg_namespace n
 							  ON n.oid = c.relnamespace
-				WHERE  n.nspname NOT IN('pg_toast', 'pg_catalog', 'information_schema')
-				ORDER  BY n.nspname ASC, c.relname ASC, d.relname ASC, a.attnum ";
+				WHERE  n.nspname NOT IN('pg_toast', 'pg_catalog', 'information_schema', 'public')
+				ORDER  BY n.nspname ASC, c.relname ASC, d.relname ASC, a.attnum";
+
+			using (var cmd = new NpgsqlCommand(sql, conn)) {
+				var savedSchema = "";
+				var savedTable = "";
+				var savedIndex = "";
+				var savedType = ' ';
+
+				using (var reader = cmd.ExecuteReader()) {
+					var sb = new StringBuilder();
+
+					// TODO: 2015-09-25: handle ASC, DESC, NULL FIRST options.
+					while (reader.Read()) {
+						var schema = reader["nspname"].ToString();
+						var table = reader["table_name"].ToString();
+						var index = reader["index_name"].ToString();
+
+						// Schema, table or index changed: close index defenition.
+						if (!savedSchema.Equals(schema) || !savedTable.Equals(table)
+							|| !savedIndex.Equals(index)) 
+						{
+							if (sb.Length > 0) 
+								sw.WriteIndex
+									(savedSchema, 
+									savedTable,
+									savedIndex,
+									savedType,
+									sb.ToString());
+							sb.Clear();
+
+							savedSchema = schema;
+							savedTable = table;
+							savedIndex = index;
+
+							if ((bool) reader["indisprimary"]) {
+								savedType = 'P';
+							}
+							else if ((bool) reader["indisunique"]) {
+								savedType = 'U';
+							}
+							else savedType = 'I';
+						}
+						else sb.Append(", ");
+
+						sb.Append("[" + reader["attname"] + "]");
+					}
+
+					if (sb.Length > 0)
+						sw.WriteIndex(
+							savedSchema, 
+							savedTable, 
+							savedIndex, 
+							savedType, 
+							sb.ToString());
+				}
+			}
 		}
 
 		/// <summary>
 		/// 
 		/// </summary>
-		/// <returns></returns>
-		private static bool CheckPaths() {
-			var path = _params.Get("other.work_path").ToString();
-
-			try {
-				if (!Directory.Exists(path)) Directory.CreateDirectory(path);
-
-				path = _params.Get("other.dump_path").ToString();
-				if (!Directory.Exists(path)) Directory.CreateDirectory(path);
+		/// <param name="sw"></param>
+		/// <param name="schema"></param>
+		/// <param name="table"></param>
+		/// <param name="name"></param>
+		/// <param name="typ"></param>
+		/// <param name="columns"></param>
+		private static void WriteIndex(
+			this TextWriter sw, 
+			string schema, 
+			string table,
+			string name,
+			char typ, 
+			string columns) 
+		{
+			switch (typ) {
+				case 'P':
+					sw.WriteLine("GO");
+					sw.WriteLine("ALTER TABLE " + schema + "." + table);
+					sw.Write("ADD CONSTRAINT PK_" + table + " PRIMARY KEY CLUSTERED (");
+					sw.WriteLine(columns + ");");
+					break;
+				case 'I':
+					sw.Write("CREATE INDEX ");
+					sw.WriteLine(name + " ON " + schema + "." + table);
+					sw.WriteLine("(" + columns + ")");
+					sw.WriteLine(
+						"WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, ");
+					sw.WriteLine(
+						"SORT_IN_TEMPDB = OFF, DROP_EXISTING = OFF, ONLINE = OFF, ");
+						sw.WriteLine("ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON)");
+					break;
+				default:
+					throw new NotImplementedException();
 			}
-			catch (Exception ex) {
-				_log.WriteEx('E', Constants.LogTsType, ex);
-				return false;
-			}
-
-			return true;
+			
+			sw.WriteLine("GO");
+			sw.WriteLine();
 		}
 	}
 }

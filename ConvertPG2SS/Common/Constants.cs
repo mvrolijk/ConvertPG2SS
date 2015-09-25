@@ -12,6 +12,7 @@
 namespace ConvertPG2SS.Common {
 	internal static class Constants {
 		public const string AppName = "ConvertPG2SS";
+		public const char Tab = '\t';
 
 		// Security
 		public const string AesKeyFile = "aes.key";

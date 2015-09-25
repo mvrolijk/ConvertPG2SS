@@ -10,6 +10,8 @@
 //----------------------------------------------------------------------------------------
 
 using System;
+using System.IO;
+using ConvertPG2SS.Common;
 using ConvertPG2SS.Interfaces;
 
 namespace ConvertPG2SS.Helpers {
@@ -22,6 +24,28 @@ namespace ConvertPG2SS.Helpers {
 				log.Write('F', 'T', "Program has aborted due to unrecoverable errors.");
 			}
 			Environment.Exit(1);
+		}
+
+
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <returns></returns>
+		internal static bool CheckParams(IParameters prms, IBLogger log) {
+			var path = prms.Get("other.work_path").ToString();
+
+			try {
+				if (!Directory.Exists(path)) Directory.CreateDirectory(path);
+
+				path = prms.Get("other.dump_path").ToString();
+				if (!Directory.Exists(path)) Directory.CreateDirectory(path);
+			}
+			catch (Exception ex) {
+				log.WriteEx('E', Constants.LogTsType, ex);
+				return false;
+			}
+
+			return true;
 		}
 	}
 }

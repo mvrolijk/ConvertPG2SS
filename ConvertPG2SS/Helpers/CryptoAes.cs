@@ -6,8 +6,9 @@
 // <date>2015-04-21</date>
 // <time>19:37</time>
 //
-// <summary>http://stackoverflow.com/questions/165808/simple-2-way-encryption-for-c-sharp
-// This class is used by BIA to handle encryptions and decriptions</summary>
+// <summary>Based on:
+// http://stackoverflow.com/questions/165808/simple-2-way-encryption-for-c-sharp
+// This class is used to handle encryptions and decriptions</summary>
 //----------------------------------------------------------------------------------------
 
 using System;

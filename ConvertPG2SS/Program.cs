@@ -12,6 +12,7 @@
 using System;
 using System.Diagnostics;
 using ConvertPG2SS.Common;
+using ConvertPG2SS.Helpers;
 using ConvertPG2SS.Interfaces;
 using ConvertPG2SS.Services;
 using NLog;
@@ -45,7 +46,12 @@ namespace ConvertPG2SS {
 #if DEBUG
 			_param.WriteParametersToLog();
 #endif
-			Process.Do();
+			if (General.CheckParams(_param, _log)) {
+				if (bool.Parse(_param.Get("other.process_schema").ToString())) 
+					ProcessSchema.Do();
+				if (bool.Parse(_param.Get("other.process_bulk").ToString())) 
+					ProcessBulk.Do();				
+			}
 
 			_param.Dispose();
 			_log.Info(string.Empty);

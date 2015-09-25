@@ -7,7 +7,7 @@
 // <time>12:48</time>
 //
 // <summary>The program uses this class to set and retrieve the parameters it needs to
-// function. This class is instatiated one time only by Simply Injector</summary>
+// function. This class is instatiated as a sigleton by SimpleInjector</summary>
 //----------------------------------------------------------------------------------------
 
 using System;
