@@ -10,8 +10,10 @@
 //----------------------------------------------------------------------------------------
 
 using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Globalization;
+using System.Linq;
 using ConvertPG2SS.Common;
 using ConvertPG2SS.Interfaces;
 using Npgsql;
@@ -340,6 +342,29 @@ namespace ConvertPG2SS.Helpers {
 				"VALUES ('{0}', '{1}')",
 				schema, table);
 			ExecuteSql(sql, conn);
+		}
+
+		internal static List<string> GetTablePgTypes(
+			string schema, 
+			string table, 
+			NpgsqlConnection conn) 
+		{
+			var sql = string.Format(
+				CultureInfo.InvariantCulture,
+				"SELECT (a.atttypid::regtype)::text AS regtype FROM pg_class c " +
+				"LEFT JOIN pg_namespace n ON n.oid = c.relnamespace " +
+				"LEFT JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 " +
+				"WHERE c.relkind = 'r'::\"char\" AND n.nspname = '{0}' " +
+				"      AND c.relname = '{1}' ORDER BY a.attnum ASC",
+				schema, table);
+
+			using (var da = new NpgsqlDataAdapter(sql, conn))
+			using (var dt = new DataTable()) {
+				da.Fill(dt);
+
+				return dt.Rows.OfType<DataRow>()
+					.Select(dr => dr.Field<string>("regtype")).ToList();
+			}
 		}
 	}
 }

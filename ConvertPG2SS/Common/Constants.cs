@@ -26,7 +26,7 @@ namespace ConvertPG2SS.Common {
 		public const string FrmConnKey    = "fromconnection";
 
 		// Other
-		public const string IsoDateTime = "yyyy'-'MM'-'dd' 'HH':'mm':'ss ";
+		public const string TimeStamp = "yyyy'-'MM'-'dd' 'HH':'mm':'ss.ffff";
 		public const string IsoDate = "yyyy-MM-dd";
 		public const string IsoDateNoDelim = "yyyyMMdd";
 
