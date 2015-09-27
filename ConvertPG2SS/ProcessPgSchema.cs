@@ -22,7 +22,7 @@
 // <date>2015-09-23</date>
 // <time>20:49</time>
 //
-// <summary>Process the Postgres db schema that will be converted.</summary>
+// <summary>Generate the SQL Server scripts from the PG schema.</summary>
 //----------------------------------------------------------------------------------------
 
 using System;
@@ -37,22 +37,23 @@ using ConvertPG2SS.Interfaces;
 using Npgsql;
 
 namespace ConvertPG2SS {
-	static class ProcessSchema {
+	static class ProcessPgSchema {
 		private static IBLogger _log;
 		private static IParameters _params;
 
 		/// <summary>
-		/// 
+		///     Generate the scripts.
 		/// </summary>
 		internal static void Do() {
 			_log = Program.GetInstance<IBLogger>();
 			_params = Program.GetInstance<IParameters>();
 
-			var frmConn = (NpgsqlConnection)_params.Get(Constants.FrmConnection);
+			var frmConn = (NpgsqlConnection) _params.Get(Constants.FrmConnection);
 			Postgres.CreateTempAryTables(frmConn);
 
 			#region PostgreSQL query to retrieve coloumn information from pg_catalog.
-			const string sql = 
+
+			const string sql =
 				@"SELECT n.nspname, c.relname, a.attname, a.attnum,
 				(a.atttypid::regtype)::text AS regtype, a.attnotnull,
 				format_type(a.atttypid, a.atttypmod) AS type,
@@ -95,22 +96,56 @@ namespace ConvertPG2SS {
 					c.relkind = 'r'::""char""
 					AND n.nspname NOT IN('pg_catalog', 'information_schema', 'public')
 				ORDER BY n.nspname ASC, c.relname ASC, a.attnum ASC";
-#endregion
-			var schemas = new List<string>();
-			var path = Path.Combine(
-				_params.Get("other.work_path").ToString(), 
-				"create_tables.sql");
 
-			using (var sw = new StreamWriter(path, false, Encoding.Default)) 
-			using (var da = new NpgsqlDataAdapter(sql, frmConn)) {
-				//sw.BuildIndexes();
-				//return;
-				var dt = new DataTable();
+			#endregion
+
+			var dt = new DataTable();
+			NpgsqlDataAdapter da = null;
+
+			try {
+				da = new NpgsqlDataAdapter(sql, frmConn);
 				da.Fill(dt);
 
 				if (dt.Rows.Count == 0) return;
 
-				sw.PrepCreateTable();
+				GenerateSsScripts(dt, frmConn);
+			}
+			catch (NpgsqlException ex) {
+				_log.WriteEx('E', Constants.LogTsType, ex);
+			}
+			finally {
+				if (da != null) da.Dispose();
+				dt.Dispose();
+			}
+		}
+
+		/// <summary>
+		///     Generate the SQL Server scripts.
+		/// </summary>
+		/// <param name="dt">DataTable with all the PostgreSQL schema/table/column info.</param>
+		/// <param name="conn">PG connection.</param>
+		private static void GenerateSsScripts(DataTable dt, NpgsqlConnection conn) {
+			var schemas = new List<string>();
+			var createPath = Path.Combine(
+				_params.Get("other.work_path").ToString(), "create_tables.sql");
+			var dropPath = Path.Combine(
+				_params.Get("other.work_path").ToString(),"drop_tables.sql");
+			var truncPath = Path.Combine(
+				_params.Get("other.work_path").ToString(),"truncate_tables.sql");
+
+			StreamWriter swCreate = null;
+			StreamWriter swDrop = null;
+			StreamWriter swTrunc = null;
+
+			try {
+				swCreate = new StreamWriter(createPath, false, Encoding.Default);
+				swDrop = new StreamWriter(dropPath, false, Encoding.Default);
+				swTrunc = new StreamWriter(truncPath, false, Encoding.Default);
+
+				swCreate.WriteBeginTrans();
+				swDrop.WriteBeginTrans();
+				swTrunc.WriteBeginTrans();
+				swCreate.PrepCreateTable();
 
 				var savedSchema = "";
 				var savedTable = "";
@@ -124,16 +159,18 @@ namespace ConvertPG2SS {
 					if (!savedSchema.Equals(schema) || !savedTable.Equals(table)) {
 						if (!savedSchema.Equals(schema)) schemas.Add(schema);
 						if (!string.IsNullOrEmpty(savedTable)) {
-							CloseCreateTable(sw, defaults);
+							CloseCreateTable(swCreate, defaults);
 							defaults.Clear();
 						}
 						savedSchema = schema;
 						savedTable = table;
-						Postgres.InsertTempTable(savedSchema, savedTable, frmConn);
+						Postgres.InsertTempTable(savedSchema, savedTable, conn);
 
-						sw.OpenCreateTable(schema, table);
+						swCreate.OpenCreateTable(schema, table);
+						swDrop.WriteDropCommand(schema, table);
+						swTrunc.WriteTruncateCommand(schema, table);
 					}
-					else sw.WriteLine(",");
+					else swCreate.WriteLine(",");
 
 					// Generate column definition.
 					string[] def;
@@ -144,42 +181,49 @@ namespace ConvertPG2SS {
 							row["nspname"].ToString(),
 							row["relname"].ToString(),
 							row["attname"].ToString(),
-							frmConn);
+							conn);
 						Postgres.InsertTempAryTableRec(
 							row["nspname"].ToString(),
 							row["relname"].ToString(),
 							row["attname"].ToString(),
 							dim,
-							frmConn);
+							conn);
 					}
-					sw.GenerateColumn(row, dim, out def);
+					swCreate.GenerateColumn(row, dim, out def);
 					if (!string.IsNullOrEmpty(def[0])) defaults.Add(def);
 				}
 
-				if (!string.IsNullOrEmpty(savedTable)) {
-					sw.CloseCreateTable(defaults);
-					sw.WriteTableDesc(frmConn);
-					sw.BuildIndexes(frmConn);
-					sw.WriteLine("COMMIT TRANSACTION;");
-				}
-				dt.Dispose();
+				if (schemas.Count == 0) return;
+
+				// Complete last writes.
+				swCreate.CloseCreateTable(defaults);
+				swCreate.WriteTableDesc(conn);
+				swCreate.BuildIndexes(conn);
+				swCreate.WriteCommitTrans();
+				swDrop.WriteCommitTrans();
+				swTrunc.WriteCommitTrans();
+
+				GenCreateSchemas(schemas);
 			}
-
-			if (schemas.Count == 0) return;
-
-			GenCreateSchemas(schemas);
+			catch (Exception ex) {
+				_log.WriteEx('E', Constants.LogTsType, ex);
+			}
+			finally {
+				if (swCreate != null) swCreate.Dispose();
+				if (swDrop != null) swDrop.Dispose();
+				if (swTrunc != null) swTrunc.Dispose();
+			}
 		}
 
 		/// <summary>
-		/// 
+		///     Generate the column definition.
 		/// </summary>
-		/// <param name="sw"></param>
+		/// <param name="tw"></param>
 		/// <param name="row"></param>
 		/// <param name="dim"></param>
 		/// <param name="def"></param>
-		/// <returns></returns>
 		private static void GenerateColumn(
-			this TextWriter sw,
+			this TextWriter tw,
 			DataRow row,
 			int dim,
 			out string[] def) 
@@ -201,7 +245,7 @@ namespace ConvertPG2SS {
 
 			for (var i = 0; i <= aryDim; i++) {
 				if (aryDim > 0) ext = (i + 1).ToString(fmt);
-				if (i > 0) sw.WriteLine(",");
+				if (i > 0) tw.WriteLine(",");
 
 				sb.Append(Constants.Tab + "[" + row["attname"] + ext + "]");
 				sb.Append(" [" + dt + "]");
@@ -236,7 +280,7 @@ namespace ConvertPG2SS {
 					}
 				}
 
-				sw.Write(sb.ToString());
+				tw.Write(sb.ToString());
 				sb.Clear();
 			}
 
@@ -244,64 +288,86 @@ namespace ConvertPG2SS {
 		}
 
 		/// <summary>
-		/// 
+		///     Write required SQL Server commands before starting to write the 
+		///     CREATE TABLE statements. 
 		/// </summary>
-		/// <param name="sw"></param>
-		private static void PrepCreateTable(this TextWriter sw) {
-			sw.WriteLine("USE " + _params.Get("mssql.database") + ";");
-			sw.WriteLine("GO");
-			sw.WriteLine();
-			sw.WriteLine("BEGIN TRANSACTION;");
-			sw.WriteLine();
-			sw.WriteLine("SET ANSI_NULLS ON");
-			sw.WriteLine("GO");
-			sw.WriteLine("SET QUOTED_IDENTIFIER ON");
-			sw.WriteLine("GO");
+		/// <param name="tw"></param>
+		private static void PrepCreateTable(this TextWriter tw) {
+			tw.WriteLine("SET ANSI_NULLS ON");
+			tw.WriteLine("GO");
+			tw.WriteLine("SET QUOTED_IDENTIFIER ON");
+			tw.WriteLine("GO");
 		}
 
 		/// <summary>
-		/// 
+		///     Write the starting CREATE TABLE lines.
 		/// </summary>
-		/// <param name="sw"></param>
+		/// <param name="tw"></param>
 		/// <param name="schema"></param>
 		/// <param name="table"></param>
 		private static void OpenCreateTable(
-			this TextWriter sw, 
+			this TextWriter tw, 
 			string schema, 
 			string table) 
 		{
-			sw.WriteLine("SET ANSI_PADDING ON");
-			sw.WriteLine("GO");
-			sw.WriteLine();
-			sw.Write("CREATE TABLE [");
-			sw.WriteLine(schema + "].[" + table + "](");
+			tw.WriteLine("SET ANSI_PADDING ON");
+			tw.WriteLine("GO");
+			tw.WriteLine();
+			tw.Write("CREATE TABLE [");
+			tw.WriteLine(schema + "].[" + table + "](");
 		}
 
 		/// <summary>
-		/// 
+		///     Write the CREATE TABLE closing.
 		/// </summary>
-		/// <param name="sw"></param>
+		/// <param name="tw"></param>
 		/// <param name="defaults"></param>
 		private static void CloseCreateTable(
-			this TextWriter sw,  
+			this TextWriter tw,  
 			IReadOnlyCollection<string[]> defaults) 
 		{
-			sw.WriteLine();
-			sw.WriteLine(") ON [PRIMARY]");
-			sw.WriteLine("GO");
-			sw.WriteLine();
+			tw.WriteLine();
+			tw.WriteLine(") ON [PRIMARY]");
+			tw.WriteLine("GO");
+			tw.WriteLine();
 
 			if (defaults.Count == 0) return;
-			sw.WriteDefaults(defaults);
-			sw.WriteColumnComments(defaults);
+			tw.WriteDefaults(defaults);
+			tw.WriteColumnComments(defaults);
+		}
+
+
+		/// <summary>
+		///     Write the DROP TABLE statement.
+		/// </summary>
+		/// <param name="tw"></param>
+		/// <param name="schema"></param>
+		/// <param name="table"></param>
+		private static void WriteDropCommand(this TextWriter tw, string schema, string table) {
+			// TODO: 2015-09-27: the issue of constraints such as FOREIGN KEYS will come up.
+			var qual = "[" + schema + "." + table + "]";
+			tw.Write("IF OBJECT_ID ('" + qual + "') ");
+			tw.WriteLine("IS NOT NULL DROP TABLE " + qual + ";");
 		}
 
 		/// <summary>
-		///     Add default constraint for table. 
+		///     Write the TRUNCATE TABLE statement.
 		/// </summary>
-		/// <param name="sw"></param>
+		/// <param name="tw"></param>
+		/// <param name="schema"></param>
+		/// <param name="table"></param>
+		private static void WriteTruncateCommand(this TextWriter tw, string schema, string table) {
+			// TODO: 2015-09-27: the issue of constraints such as FOREIGN KEYS will come up.
+			var qual = "[" + schema + "." + table + "]";
+			tw.WriteLine("TRUNCATE TABLE " + qual+ ";");
+		}
+
+		/// <summary>
+		///     Add default constraints for table. 
+		/// </summary>
+		/// <param name="tw"></param>
 		/// <param name="defaults"></param>
-		private static void WriteDefaults(this TextWriter sw, IEnumerable<string[]> defaults) {
+		private static void WriteDefaults(this TextWriter tw, IEnumerable<string[]> defaults) {
 			var first = true;
 
 			foreach (var def in defaults) {
@@ -311,46 +377,46 @@ namespace ConvertPG2SS {
 				if (string.IsNullOrEmpty(defVal)) continue;
 
 				if (first) {
-					sw.WriteLine("SET ANSI_PADDING OFF");
-					sw.WriteLine("GO");
-					sw.WriteLine();
+					tw.WriteLine("SET ANSI_PADDING OFF");
+					tw.WriteLine("GO");
+					tw.WriteLine();
 					first = false;
 				}
 
-				sw.Write("ALTER TABLE [" + def[0] + "].[");
-				sw.Write(def[1] + "] ADD CONSTRAINT DF_");
-				sw.Write(def[1] + "_" + def[2] + " DEFAULT ");
-				sw.WriteLine("(" + defVal + ") FOR [" + def[2] + "]");
-				sw.WriteLine("GO");
-				sw.WriteLine();
+				tw.Write("ALTER TABLE [" + def[0] + "].[");
+				tw.Write(def[1] + "] ADD CONSTRAINT DF_");
+				tw.Write(def[1] + "_" + def[2] + " DEFAULT ");
+				tw.WriteLine("(" + defVal + ") FOR [" + def[2] + "]");
+				tw.WriteLine("GO");
+				tw.WriteLine();
 			}
 		}
 
 		/// <summary>
-		/// 
+		///     Write the column comments.
 		/// </summary>
-		/// <param name="sw"></param>
+		/// <param name="tw"></param>
 		/// <param name="defaults"></param>
 		private static void WriteColumnComments(
-			this TextWriter sw,
+			this TextWriter tw,
 			IEnumerable<string[]> defaults) 
 		{
 			foreach (var def in defaults.Where(def => !string.IsNullOrEmpty(def[4]))) {
-				sw.Write("EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'");
-				sw.WriteLine(def[4] + "' ,");
-				sw.Write("@level0type=N'SCHEMA',@level0name=N'");
-				sw.WriteLine(def[0] + "' ,");
-				sw.Write("@level1type=N'TABLE',@level1name=N'");
-				sw.WriteLine(def[1] + "' ,");
-				sw.Write("@level2type=N'COLUMN',@level2name=N'");
-				sw.WriteLine(def[2] + "'");
-				sw.WriteLine("GO");
-				sw.WriteLine();
+				tw.Write("EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'");
+				tw.WriteLine(def[4] + "' ,");
+				tw.Write("@level0type=N'SCHEMA',@level0name=N'");
+				tw.WriteLine(def[0] + "' ,");
+				tw.Write("@level1type=N'TABLE',@level1name=N'");
+				tw.WriteLine(def[1] + "' ,");
+				tw.Write("@level2type=N'COLUMN',@level2name=N'");
+				tw.WriteLine(def[2] + "'");
+				tw.WriteLine("GO");
+				tw.WriteLine();
 			}
 		}
 
 		/// <summary>
-		/// 
+		///     Write the CREATE SCHEMA statements.
 		/// </summary>
 		/// <param name="schemas"></param>
 		private static void GenCreateSchemas(IEnumerable<string> schemas) {
@@ -358,24 +424,23 @@ namespace ConvertPG2SS {
 				Path.Combine(_params.Get("other.work_path").ToString(), "create_schemas.sql");
 
 			using (var sw = new StreamWriter(path, false, Encoding.Default)) {
-				sw.WriteLine("USE " + _params.Get("mssql.database") + ";");
-				sw.WriteLine("GO");
-				sw.WriteLine();
+				sw.WriteBeginTrans();
 
 				foreach (var schema in schemas) {
 					sw.WriteLine("CREATE SCHEMA " + schema + ";");
 					sw.WriteLine("GO");
 					sw.WriteLine();
 				}
+				sw.WriteCommitTrans();
 			}
 		}
 
 		/// <summary>
-		/// 
+		///     Write the table descriptions.
 		/// </summary>
-		/// <param name="sw"></param>
+		/// <param name="tw"></param>
 		/// <param name="conn"></param>
-		private static void WriteTableDesc(this TextWriter sw, NpgsqlConnection conn) {
+		private static void WriteTableDesc(this TextWriter tw, NpgsqlConnection conn) {
 			const string sql =
 				@"SELECT n.nspname, c.relname, d.description
 				FROM	pg_description d
@@ -391,26 +456,26 @@ namespace ConvertPG2SS {
 						var comment = reader["description"].ToString().Trim();
 						if (string.IsNullOrEmpty(comment)) continue;
 
-						sw.Write(
+						tw.Write(
 							"EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'");
-						sw.WriteLine(comment + "' ,");
-						sw.Write("@level0type=N'SCHEMA',@level0name=N'");
-						sw.WriteLine(reader["nspname"] + "' ,");
-						sw.Write("@level1type=N'TABLE',@level1name=N'");
-						sw.WriteLine(reader["relname"] + "'");
-						sw.WriteLine("GO");
-						sw.WriteLine();
+						tw.WriteLine(comment + "' ,");
+						tw.Write("@level0type=N'SCHEMA',@level0name=N'");
+						tw.WriteLine(reader["nspname"] + "' ,");
+						tw.Write("@level1type=N'TABLE',@level1name=N'");
+						tw.WriteLine(reader["relname"] + "'");
+						tw.WriteLine("GO");
+						tw.WriteLine();
 					}
 				}
 			}
 		}
 
 		/// <summary>
-		/// 
+		///     Write the different create indeces/key constraint statements. 
 		/// </summary>
-		/// <param name="sw"></param>
+		/// <param name="tw"></param>
 		/// <param name="conn"></param>
-		private static void BuildIndexes(this TextWriter sw, NpgsqlConnection conn) {
+		private static void BuildIndexes(this TextWriter tw, NpgsqlConnection conn) {
 			// option column values:
 			// INDOPTION_DESC			0x0001 = values are in reverse order (DESC)
 			// INDOPTION_NULLS_FIRST	0x0002 = NULLs are first instead of last
@@ -450,7 +515,7 @@ namespace ConvertPG2SS {
 							|| !savedIndex.Equals(index)) 
 						{
 							if (sb.Length > 0) 
-								sw.WriteIndex
+								tw.WriteIndex
 									(savedSchema, 
 									savedTable,
 									savedIndex,
@@ -476,7 +541,7 @@ namespace ConvertPG2SS {
 					}
 
 					if (sb.Length > 0)
-						sw.WriteIndex(
+						tw.WriteIndex(
 							savedSchema, 
 							savedTable, 
 							savedIndex, 
@@ -487,16 +552,16 @@ namespace ConvertPG2SS {
 		}
 
 		/// <summary>
-		/// 
+		///     Write the index / constraint statement.
 		/// </summary>
-		/// <param name="sw"></param>
+		/// <param name="tw"></param>
 		/// <param name="schema"></param>
 		/// <param name="table"></param>
 		/// <param name="name"></param>
 		/// <param name="typ"></param>
 		/// <param name="columns"></param>
 		private static void WriteIndex(
-			this TextWriter sw, 
+			this TextWriter tw, 
 			string schema, 
 			string table,
 			string name,
@@ -505,27 +570,48 @@ namespace ConvertPG2SS {
 		{
 			switch (typ) {
 				case 'P':
-					sw.WriteLine("GO");
-					sw.WriteLine("ALTER TABLE " + schema + "." + table);
-					sw.Write("ADD CONSTRAINT PK_" + table + " PRIMARY KEY CLUSTERED (");
-					sw.WriteLine(columns + ");");
+					tw.WriteLine("GO");
+					tw.WriteLine("ALTER TABLE " + schema + "." + table);
+					tw.Write("ADD CONSTRAINT PK_" + table + " PRIMARY KEY CLUSTERED (");
+					tw.WriteLine(columns + ");");
 					break;
 				case 'I':
-					sw.Write("CREATE INDEX ");
-					sw.WriteLine(name + " ON " + schema + "." + table);
-					sw.WriteLine("(" + columns + ")");
-					sw.WriteLine(
+					tw.Write("CREATE INDEX ");
+					tw.WriteLine(name + " ON " + schema + "." + table);
+					tw.WriteLine("(" + columns + ")");
+					tw.WriteLine(
 						"WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, ");
-					sw.WriteLine(
+					tw.WriteLine(
 						"SORT_IN_TEMPDB = OFF, DROP_EXISTING = OFF, ONLINE = OFF, ");
-						sw.WriteLine("ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON)");
+						tw.WriteLine("ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON)");
 					break;
 				default:
 					throw new NotImplementedException();
 			}
 			
-			sw.WriteLine("GO");
-			sw.WriteLine();
+			tw.WriteLine("GO");
+			tw.WriteLine();
+		}
+
+		/// <summary>
+		///     Write begin transaction.
+		/// </summary>
+		/// <param name="tw"></param>
+		private static void WriteBeginTrans(this TextWriter tw) {
+			tw.WriteLine("USE " + _params.Get("mssql.database") + ";");
+			tw.WriteLine("GO");
+			tw.WriteLine();
+			tw.WriteLine("BEGIN TRANSACTION;");
+			tw.WriteLine();
+		}
+
+		/// <summary>
+		///     Write commit transaction.
+		/// </summary>
+		/// <param name="tw"></param>
+		private static void WriteCommitTrans(this TextWriter tw) {
+			tw.WriteLine();
+			tw.WriteLine("COMMIT TRANSACTION;");
 		}
 	}
 }

@@ -38,7 +38,7 @@ using ConvertPG2SS.Interfaces;
 using Npgsql;
 
 namespace ConvertPG2SS {
-	static class ProcessBulk {
+	static class ProcessPgBulk {
 		private static IBLogger _log;
 		private static IParameters _params;
 
