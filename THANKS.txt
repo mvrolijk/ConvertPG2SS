@@ -1,0 +1,10 @@
+A heartfelt thank you to the following library authors / communities:
+
+ - Npgsql: http://www.npgsql.org/community.html
+ - NLog: http://nlog-project.org/
+ - SimpleInjector: https://simpleinjector.org/index.html
+ - ini-parser: https://github.com/rickyah/ini-parser
+
+ Without these libraries this little project would have been a non-starter.
+
+ Also, thank you to Microsoft for realeasing the Visual Studio Community Editions.
