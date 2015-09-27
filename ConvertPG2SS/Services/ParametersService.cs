@@ -28,6 +28,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -68,6 +69,7 @@ namespace ConvertPG2SS.Services {
 		///     Reload the parameters.
 		/// </summary>
 		public void Reload() {
+			if (_param.Count > 0) DisposeMe();
 			_param.Clear();
 			ProcessIniFile();
 
@@ -78,6 +80,7 @@ namespace ConvertPG2SS.Services {
 			}
 
 			_param.Add(Constants.PgConnection, pgConn);
+			_param.Add(Constants.PgSchemaTable, new DataTable());
 
 			if (_param.ContainsKey("logging.level")) {
 				var str = _param["logging.level"].ToString();
@@ -87,22 +90,18 @@ namespace ConvertPG2SS.Services {
 			if (char.IsWhiteSpace(Level)) Level = 'I';
 		}
 
+		
 		/// <summary>
-		///     Return a parameter.
+		///    Indexer.
 		/// </summary>
-		/// <param name="key">The parameter key</param>
-		/// <returns>
-		///     The value retrieved by the key, or null if the key was not
-		///     found.
-		/// </returns>
-		public object Get(string key) {
-			try {
-				return _param[key];
-			}
-			catch (KeyNotFoundException ex) {
-				_log.Write('E', ' ', "Key: " + key);
-				_log.WriteEx('E', Constants.LogTsType, ex);
-				return new object();
+		/// <param name="key"></param>
+		/// <returns></returns>
+		public object this[string key] {
+			get {
+				if (_param.ContainsKey(key)) return _param[key];
+				var msg = "Parameter '" + key + "' does not exist.";
+				_log.Write('E', Constants.LogTsType, msg);
+				throw new ArgumentException(msg);
 			}
 		}
 
@@ -133,8 +132,7 @@ namespace ConvertPG2SS.Services {
 			}
 			
 		}
-
-
+		
 		/// <summary>
 		///     Write all parameters to the log file(s).
 		/// </summary>
@@ -169,16 +167,25 @@ namespace ConvertPG2SS.Services {
 		protected virtual void Dispose(bool disposing) {
 			if (_disposed) return;
 
-			if (disposing) {
-				// Dispose of the SQL connections.
-				if (_param[Constants.PgConnection] != null) {
-					((NpgsqlConnection)_param[Constants.PgConnection]).Dispose();
-				}
-			}
+			if (disposing) DisposeMe();
 
 			// Free any unmanaged objects here.
 
 			_disposed = true;
+		}
+
+		/// <summary>
+		///     Dispose my objects.
+		/// </summary>
+		private void DisposeMe() {
+			// Dispose of the SQL connections.
+			if (_param[Constants.PgConnection] != null) {
+				((NpgsqlConnection)_param[Constants.PgConnection]).Dispose();
+			}
+
+			if (_param[Constants.PgSchemaTable] != null) {
+				((DataTable) _param[Constants.PgSchemaTable]).Dispose();
+			}
 		}
 
 		/// <summary>

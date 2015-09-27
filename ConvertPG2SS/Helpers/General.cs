@@ -48,12 +48,12 @@ namespace ConvertPG2SS.Helpers {
 		/// </summary>
 		/// <returns></returns>
 		internal static bool CheckParams(IParameters prms, IBLogger log) {
-			var path = prms.Get("other.work_path").ToString();
+			var path = prms["other.work_path"].ToString();
 
 			try {
 				if (!Directory.Exists(path)) Directory.CreateDirectory(path);
 
-				path = prms.Get("other.dump_path").ToString();
+				path = prms["other.dump_path"].ToString();
 				if (!Directory.Exists(path)) Directory.CreateDirectory(path);
 			}
 			catch (Exception ex) {

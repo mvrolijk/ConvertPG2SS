@@ -31,7 +31,7 @@ using System.Collections.Generic;
 namespace ConvertPG2SS.Interfaces {
 	internal interface IParameters : IDisposable {
 		void Reload();
-		object Get(string key);
+		object this[string key] { get; }
 		bool Contains(string key);
 		void WriteParametersToLog();
 		IEnumerable<KeyValuePair<string, object>> GetParams();

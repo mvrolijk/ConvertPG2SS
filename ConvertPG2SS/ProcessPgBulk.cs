@@ -46,7 +46,7 @@ namespace ConvertPG2SS {
 			_log = Program.GetInstance<IBLogger>();
 			_params = Program.GetInstance<IParameters>();
 
-			var frmConn = (NpgsqlConnection)_params.Get(Constants.PgConnection);
+			var frmConn = (NpgsqlConnection)_params[Constants.PgConnection];
 
 			CreateBulkFile(frmConn);
 			CreateImportFiles(frmConn);
@@ -64,12 +64,12 @@ namespace ConvertPG2SS {
 				ORDER BY schema_name, table_name";
 
 			var path = Path.Combine(
-				_params.Get("other.work_path").ToString(),
+				_params["other.work_path"].ToString(),
 				"bulk_copy.sql");
 
 			using (var sw = new StreamWriter(path, false, Encoding.Default)) 
 			using (var cmd = new NpgsqlCommand(sql, conn)) {
-				sw.WriteLine("USE " + _params.Get("mssql.database") + ";");
+				sw.WriteLine("USE " + _params["mssql.database"] + ";");
 				sw.WriteLine("GO");
 				sw.WriteLine();
 				sw.WriteLine("BEGIN TRANSACTION;");
@@ -205,7 +205,7 @@ namespace ConvertPG2SS {
 		/// <returns></returns>
 		private static string ImportFile(string schema, string table) {
 			return Path.Combine(
-			 _params.Get("other.dump_path").ToString(),
+			 _params["other.dump_path"].ToString(),
 			 schema + "_" + table + ".tsv");
 		}
 	}

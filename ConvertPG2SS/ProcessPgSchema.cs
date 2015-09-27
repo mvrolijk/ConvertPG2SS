@@ -127,11 +127,11 @@ namespace ConvertPG2SS {
 		private static void GenerateSsScripts(DataTable dt, NpgsqlConnection conn) {
 			var schemas = new List<string>();
 			var createPath = Path.Combine(
-				_params.Get("other.work_path").ToString(), "create_tables.sql");
+				_params["other.work_path"].ToString(), "create_tables.sql");
 			var dropPath = Path.Combine(
-				_params.Get("other.work_path").ToString(),"drop_tables.sql");
+				_params["other.work_path"].ToString(),"drop_tables.sql");
 			var truncPath = Path.Combine(
-				_params.Get("other.work_path").ToString(),"truncate_tables.sql");
+				_params["other.work_path"].ToString(),"truncate_tables.sql");
 
 			StreamWriter swCreate = null;
 			StreamWriter swDrop = null;
@@ -421,7 +421,7 @@ namespace ConvertPG2SS {
 		/// <param name="schemas"></param>
 		private static void GenCreateSchemas(IEnumerable<string> schemas) {
 			var path = 
-				Path.Combine(_params.Get("other.work_path").ToString(), "create_schemas.sql");
+				Path.Combine(_params["other.work_path"].ToString(), "create_schemas.sql");
 
 			using (var sw = new StreamWriter(path, false, Encoding.Default)) {
 				sw.WriteBeginTrans();
@@ -598,7 +598,7 @@ namespace ConvertPG2SS {
 		/// </summary>
 		/// <param name="tw"></param>
 		private static void WriteBeginTrans(this TextWriter tw) {
-			tw.WriteLine("USE " + _params.Get("mssql.database") + ";");
+			tw.WriteLine("USE " + _params["mssql.database"] + ";");
 			tw.WriteLine("GO");
 			tw.WriteLine();
 			tw.WriteLine("BEGIN TRANSACTION;");
