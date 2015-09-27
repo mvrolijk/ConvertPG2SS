@@ -63,8 +63,8 @@
     <Compile Include="Helpers\General.cs" />
     <Compile Include="Interfaces\IBLogger.cs" />
     <Compile Include="Interfaces\IParameters.cs" />
-    <Compile Include="ProcessBulk.cs" />
-    <Compile Include="ProcessSchema.cs" />
+    <Compile Include="ProcessPgBulk.cs" />
+    <Compile Include="ProcessPgSchema.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Services\BLoggerService.cs" />

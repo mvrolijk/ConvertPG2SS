@@ -48,7 +48,7 @@ namespace ConvertPG2SS {
 			_log = Program.GetInstance<IBLogger>();
 			_params = Program.GetInstance<IParameters>();
 
-			var frmConn = (NpgsqlConnection) _params.Get(Constants.FrmConnection);
+			var frmConn = (NpgsqlConnection) _params.Get(Constants.PgConnection);
 			Postgres.CreateTempAryTables(frmConn);
 
 			#region PostgreSQL query to retrieve coloumn information from pg_catalog.

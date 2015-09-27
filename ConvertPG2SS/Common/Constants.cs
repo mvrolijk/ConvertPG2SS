@@ -36,10 +36,8 @@ namespace ConvertPG2SS.Common {
 		public const int VectorSize = 16;
 
 		// SQL Connections
-		public const string CvtConnection = "cvt_connecction";
-		public const string FrmConnection = "frm_connecction";
-		public const string CvtConnKey    = "cvtconnection";
-		public const string FrmConnKey    = "fromconnection";
+		public const string PgConnection = "pg_conn";
+		public const string PgConnKey    = "pgconnection";
 
 		// Other
 		public const string TimeStamp = "yyyy'-'MM'-'dd' 'HH':'mm':'ss.ffff";

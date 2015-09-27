@@ -46,7 +46,7 @@ namespace ConvertPG2SS {
 			_log = Program.GetInstance<IBLogger>();
 			_params = Program.GetInstance<IParameters>();
 
-			var frmConn = (NpgsqlConnection)_params.Get(Constants.FrmConnection);
+			var frmConn = (NpgsqlConnection)_params.Get(Constants.PgConnection);
 
 			CreateBulkFile(frmConn);
 			CreateImportFiles(frmConn);

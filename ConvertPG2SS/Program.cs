@@ -63,10 +63,10 @@ namespace ConvertPG2SS {
 			_param.WriteParametersToLog();
 #endif
 			if (General.CheckParams(_param, _log)) {
-				if (bool.Parse(_param.Get("other.process_schema").ToString())) 
-					ProcessSchema.Do();
-				if (bool.Parse(_param.Get("other.process_bulk").ToString())) 
-					ProcessBulk.Do();				
+				if (bool.Parse(_param.Get("postgres.process_schema").ToString())) 
+					ProcessPgSchema.Do();
+				if (bool.Parse(_param.Get("postgres.process_bulk").ToString())) 
+					ProcessPgBulk.Do();				
 			}
 
 			_param.Dispose();

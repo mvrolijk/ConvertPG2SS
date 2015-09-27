@@ -71,15 +71,13 @@ namespace ConvertPG2SS.Services {
 			_param.Clear();
 			ProcessIniFile();
 
-			var connCvt = ConnectToPgDb(Constants.CvtConnKey);
-			var connFrm = ConnectToPgDb(Constants.FrmConnKey);
+			var pgConn = ConnectToPgDb(Constants.PgConnKey);
 
-			if (connCvt == null || connFrm == null) {
+			if (pgConn == null) {
 				General.Abort("Connection to one or more SQL databases failed.");
 			}
 
-			_param.Add(Constants.CvtConnection, connCvt);
-			_param.Add(Constants.FrmConnection, connFrm);
+			_param.Add(Constants.PgConnection, pgConn);
 
 			if (_param.ContainsKey("logging.level")) {
 				var str = _param["logging.level"].ToString();
@@ -172,13 +170,9 @@ namespace ConvertPG2SS.Services {
 			if (_disposed) return;
 
 			if (disposing) {
-				// Dispose of the PostgreSQL connections.
-				if (_param[Constants.CvtConnection] != null) {
-					((NpgsqlConnection)_param[Constants.CvtConnection]).Dispose();
-				}
-
-				if (_param[Constants.FrmConnection] != null) {
-					((NpgsqlConnection)_param[Constants.FrmConnection]).Dispose();
+				// Dispose of the SQL connections.
+				if (_param[Constants.PgConnection] != null) {
+					((NpgsqlConnection)_param[Constants.PgConnection]).Dispose();
 				}
 			}
 
@@ -221,7 +215,7 @@ namespace ConvertPG2SS.Services {
 		/// <returns></returns>
 		private NpgsqlConnection ConnectToPgDb(string connStr) {
 			// Try co connect to the PostgreSQL server.
-			var connString = GetConnectionString(connStr, false);
+			var connString = GetPgConnectionString(connStr, false);
 
 			NpgsqlConnection conn = null;
 			try {
@@ -250,7 +244,7 @@ namespace ConvertPG2SS.Services {
 		}
 
 		/// <summary>
-		///     Return the connection string based on the parsing of FileProcessor.ini.
+		///     Return the PG connection string based on the parsing of the .ini file.
 		/// </summary>
 		/// <param name="conn">The connection key in the INI file</param>
 		/// <param name="test">
@@ -258,7 +252,7 @@ namespace ConvertPG2SS.Services {
 		///     file. This is for testing purposes only
 		/// </param>
 		/// <returns>The connection string</returns>
-		private string GetConnectionString(string conn, bool test) {
+		private string GetPgConnectionString(string conn, bool test) {
 			var sb = new StringBuilder();
 			var keyComp = conn + ".";
 
