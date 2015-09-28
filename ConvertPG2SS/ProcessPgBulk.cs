@@ -27,13 +27,11 @@
 
 using System;
 using System.Collections;
-using System.Collections.Generic;
 using System.Data;
 using System.Globalization;
 using System.IO;
 using System.Text;
 using ConvertPG2SS.Common;
-using ConvertPG2SS.Helpers;
 using ConvertPG2SS.Interfaces;
 using Npgsql;
 
@@ -108,6 +106,9 @@ namespace ConvertPG2SS {
 				da.Fill(dt);
 				if (dt.Rows.Count == 0) return;
 
+				_log.Info("");
+				_log.Write('I', Constants.LogTsType, "Generating import files:");
+
 				foreach (DataRow row in dt.Rows) {
 					var schema = row["schema_name"].ToString();
 					var table = row["table_name"].ToString();
@@ -130,19 +131,54 @@ namespace ConvertPG2SS {
 			this TextWriter sw, 
 			string schema, 
 			string table, 
-			NpgsqlConnection conn) {
-			var sql = string.Format(
+			NpgsqlConnection conn) 
+		{
+			var limit = int.Parse(_params["postgres.limit"].ToString());
+			string sql;
+
+			if (limit > 0) {
+				sql = string.Format(
+					CultureInfo.InvariantCulture,
+					"SELECT * FROM {0}.{1} LIMIT {2}",
+					schema, table, limit);
+			}
+			else {
+				sql = string.Format(
+					CultureInfo.InvariantCulture,
+					"SELECT * FROM {0}.{1}",
+					schema, table);
+			}
+
+			var criteria = string.Format(
 				CultureInfo.InvariantCulture,
-				"SELECT * FROM {0}.{1} LIMIT 10",
+				"schema_name = '{0}' AND table_name = '{1}'",
 				schema, table);
 
-			var columnTypes = Postgres.GetTablePgTypes(schema, table, conn);
+			var dt = (DataTable) _params[Constants.PgSchemaTable];
+			var colInfo = dt.Select(criteria, "column_index");
 
 			using (var cmd = new NpgsqlCommand(sql, conn)) {
 				using (var reader = cmd.ExecuteReader()) {
+					var cnt = 0;
 					while (reader.Read()) {
-						sw.WriteLine(ProcessRow(reader, columnTypes));
+						sw.WriteLine(ProcessRow(reader, colInfo));
+						cnt++;
 					}
+
+					var pad = (49 - schema.Length - table.Length);
+					string qualName;
+
+					if (pad > 0) qualName = schema + "." + table + new string('.', pad);
+					else qualName = schema + "." + table;
+
+					_log.Write(
+						'I',
+						Constants.LogTsType,
+						string.Format(
+							CultureInfo.InvariantCulture,
+							"{0}: {1,13:n0}",
+							qualName, cnt),
+						1);
 				}
 			}
 		}
@@ -151,40 +187,45 @@ namespace ConvertPG2SS {
 		/// 
 		/// </summary>
 		/// <param name="reader"></param>
-		/// <param name="columnTypes"></param>
+		/// <param name="colInfo"></param>
 		/// <returns></returns>
-		private static string ProcessRow(IDataRecord reader, IReadOnlyList<string> columnTypes) {
+		private static string ProcessRow(IDataRecord reader, DataRow[] colInfo) {
 			var sb = new StringBuilder();
 
 			for (var i = 0; i < reader.FieldCount; i++) {
+				var column = colInfo[i];
+
 				if (i > 0) sb.Append(Constants.Tab);
 				var valueType = reader[i].GetType();
 				if (valueType.IsArray) {
 					var enumerable = reader[i] as IEnumerable;
 					if (enumerable == null) {
-						sb.Append(FormatColumnVal(reader[i], columnTypes[i]));
+						sb.Append(FormatColumnVal(reader[i], column));
 						continue;
 					}
 					var j = 0;
 					foreach (var val in enumerable) {
 						if (j > 0) sb.Append(Constants.Tab);
-						sb.Append(FormatColumnVal(val, columnTypes[i]));
+						sb.Append(FormatColumnVal(val, column));
 						j++;
 					}
 				}
-				else sb.Append(FormatColumnVal(reader[i], columnTypes[i]));
+				else sb.Append(FormatColumnVal(reader[i], column));
 			}
 			return sb.ToString();
 		}
+
 		/// <summary>
 		/// 
 		/// </summary>
 		/// <param name="obj"></param>
-		/// <param name="type"></param>
+		/// <param name="col"></param>
 		/// <returns></returns>
-		private static string FormatColumnVal(object obj, string type) {
-			if (obj == DBNull.Value || obj == null) return "NULL";
-			switch (type) {
+		private static string FormatColumnVal(object obj, DataRow col) {
+			if (obj == DBNull.Value || obj == null) {
+				return (bool)col["notnull"] ? "NULL" :"";
+			}
+			switch (col["data_type"].ToString()) {
 				case "date":
 					return ((DateTime) obj).ToString(Constants.IsoDate);
 				case "timestamp without time zone":

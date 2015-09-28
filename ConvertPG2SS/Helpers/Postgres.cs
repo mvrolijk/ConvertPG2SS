@@ -349,8 +349,7 @@ namespace ConvertPG2SS.Helpers {
 		internal static void InsertTempTable(
 			string schema,
 			string table,
-			NpgsqlConnection conn) 
-		{
+			NpgsqlConnection conn) {
 			var sql = string.Format(
 				CultureInfo.InvariantCulture,
 				"INSERT INTO tables (" +
@@ -360,27 +359,27 @@ namespace ConvertPG2SS.Helpers {
 			ExecuteSql(sql, conn);
 		}
 
-		internal static List<string> GetTablePgTypes(
-			string schema, 
-			string table, 
-			NpgsqlConnection conn) 
-		{
-			var sql = string.Format(
-				CultureInfo.InvariantCulture,
-				"SELECT (a.atttypid::regtype)::text AS regtype FROM pg_class c " +
-				"LEFT JOIN pg_namespace n ON n.oid = c.relnamespace " +
-				"LEFT JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 " +
-				"WHERE c.relkind = 'r'::\"char\" AND n.nspname = '{0}' " +
-				"      AND c.relname = '{1}' ORDER BY a.attnum ASC",
-				schema, table);
+		//internal static List<string> GetTablePgTypes(
+		//	string schema, 
+		//	string table, 
+		//	NpgsqlConnection conn) 
+		//{
+		//	var sql = string.Format(
+		//		CultureInfo.InvariantCulture,
+		//		"SELECT (a.atttypid::regtype)::text AS regtype FROM pg_class c " +
+		//		"LEFT JOIN pg_namespace n ON n.oid = c.relnamespace " +
+		//		"LEFT JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 " +
+		//		"WHERE c.relkind = 'r'::\"char\" AND n.nspname = '{0}' " +
+		//		"      AND c.relname = '{1}' ORDER BY a.attnum ASC",
+		//		schema, table);
 
-			using (var da = new NpgsqlDataAdapter(sql, conn))
-			using (var dt = new DataTable()) {
-				da.Fill(dt);
+		//	using (var da = new NpgsqlDataAdapter(sql, conn))
+		//	using (var dt = new DataTable()) {
+		//		da.Fill(dt);
 
-				return dt.Rows.OfType<DataRow>()
-					.Select(dr => dr.Field<string>("regtype")).ToList();
-			}
-		}
+		//		return dt.Rows.OfType<DataRow>()
+		//			.Select(dr => dr.Field<string>("regtype")).ToList();
+		//	}
+		//}
 	}
 }

@@ -80,7 +80,7 @@ namespace ConvertPG2SS.Services {
 			}
 
 			_param.Add(Constants.PgConnection, pgConn);
-			_param.Add(Constants.PgSchemaTable, new DataTable());
+			_param.Add(Constants.PgSchemaTable, new DataTable(Constants.PgSchemaTable));
 
 			if (_param.ContainsKey("logging.level")) {
 				var str = _param["logging.level"].ToString();

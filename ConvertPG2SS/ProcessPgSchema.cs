@@ -48,16 +48,16 @@ namespace ConvertPG2SS {
 			_log = Program.GetInstance<IBLogger>();
 			_params = Program.GetInstance<IParameters>();
 
-			var frmConn = (NpgsqlConnection) _params.Get(Constants.PgConnection);
+			var frmConn = (NpgsqlConnection) _params[Constants.PgConnection];
 			Postgres.CreateTempAryTables(frmConn);
 
 			#region PostgreSQL query to retrieve coloumn information from pg_catalog.
 
 			const string sql =
-				@"SELECT n.nspname, c.relname, a.attname, a.attnum,
-				(a.atttypid::regtype)::text AS regtype, a.attnotnull,
-				format_type(a.atttypid, a.atttypmod) AS type,
-				a.attndims,
+				@"SELECT n.nspname AS schema_name, c.relname AS table_name,
+				a.attname AS column_name, a.attnum AS column_index, 
+				(a.atttypid::regtype)::text AS regtype, a.attnotnull AS notnull,
+				format_type(a.atttypid, a.atttypmod) AS data_type, a.attndims AS dims,
 				CASE
 					WHEN a.atttypid = ANY (ARRAY[1043::oid, 1015::oid]) THEN a.atttypmod - 4
 				ELSE NULL::integer
@@ -84,7 +84,7 @@ namespace ConvertPG2SS {
 						END
 					ELSE NULL::integer
 				END AS numeric_scale,
-				d.adsrc,
+				d.adsrc AS default_val,
 				(SELECT col_description(a.attrelid, a.attnum::integer) AS col_description)
 					AS comment
 				FROM pg_class c
@@ -99,7 +99,7 @@ namespace ConvertPG2SS {
 
 			#endregion
 
-			var dt = new DataTable();
+			var dt = (DataTable)_params[Constants.PgSchemaTable];
 			NpgsqlDataAdapter da = null;
 
 			try {
@@ -108,6 +108,13 @@ namespace ConvertPG2SS {
 
 				if (dt.Rows.Count == 0) return;
 
+				// Add primary key to table.
+				var columns = new DataColumn[3];
+				columns[0] = dt.Columns["schema_name"];
+				columns[1] = dt.Columns["table_name"];
+				columns[2] = dt.Columns["column_name"];
+				dt.PrimaryKey = columns;
+
 				GenerateSsScripts(dt, frmConn);
 			}
 			catch (NpgsqlException ex) {
@@ -115,7 +122,6 @@ namespace ConvertPG2SS {
 			}
 			finally {
 				if (da != null) da.Dispose();
-				dt.Dispose();
 			}
 		}
 
@@ -152,8 +158,8 @@ namespace ConvertPG2SS {
 				var defaults = new List<string[]>();
 
 				foreach (DataRow row in dt.Rows) {
-					var schema = row["nspname"].ToString();
-					var table = row["relname"].ToString();
+					var schema = row["schema_name"].ToString();
+					var table = row["table_name"].ToString();
 
 					// Schema or table changed: close table defenition.
 					if (!savedSchema.Equals(schema) || !savedTable.Equals(table)) {
@@ -176,16 +182,16 @@ namespace ConvertPG2SS {
 					string[] def;
 					var dim = 0;
 
-					if ((int)row["attndims"] > 0) {
+					if ((int)row["dims"] > 0) {
 						dim = Postgres.CalcArrayDim(
-							row["nspname"].ToString(),
-							row["relname"].ToString(),
-							row["attname"].ToString(),
+							row["schema_name"].ToString(),
+							row["table_name"].ToString(),
+							row["column_name"].ToString(),
 							conn);
 						Postgres.InsertTempAryTableRec(
-							row["nspname"].ToString(),
-							row["relname"].ToString(),
-							row["attname"].ToString(),
+							row["schema_name"].ToString(),
+							row["table_name"].ToString(),
+							row["column_name"].ToString(),
 							dim,
 							conn);
 					}
@@ -247,7 +253,7 @@ namespace ConvertPG2SS {
 				if (aryDim > 0) ext = (i + 1).ToString(fmt);
 				if (i > 0) tw.WriteLine(",");
 
-				sb.Append(Constants.Tab + "[" + row["attname"] + ext + "]");
+				sb.Append(Constants.Tab + "[" + row["column_name"] + ext + "]");
 				sb.Append(" [" + dt + "]");
 
 				// Text field has a size.
@@ -266,16 +272,16 @@ namespace ConvertPG2SS {
 					}
 				}
 
-				if (((bool)row["attnotnull"])) sb.Append(" NOT NULL");
+				if (((bool)row["notnull"])) sb.Append(" NOT NULL");
 				else sb.Append(" NULL");
 
 				if (i == 0) {
 					// Store information to generate default and comment definitions later.
-					if (row["adsrc"] != DBNull.Value || row["comment"] != DBNull.Value) {
-						tmpDef[0] = row["nspname"].ToString();
-						tmpDef[1] = row["relname"].ToString();
-						tmpDef[2] = row["attname"] + ext;
-						if (row["adsrc"] != DBNull.Value) tmpDef[3] = row["adsrc"].ToString();
+					if (row["default_val"] != DBNull.Value || row["comment"] != DBNull.Value) {
+						tmpDef[0] = row["schema_name"].ToString();
+						tmpDef[1] = row["table_name"].ToString();
+						tmpDef[2] = row["column_name"] + ext;
+						if (row["default_val"] != DBNull.Value) tmpDef[3] = row["default_val"].ToString();
 						if (row["comment"] != DBNull.Value) tmpDef[4] = row["comment"].ToString();
 					}
 				}
@@ -345,7 +351,7 @@ namespace ConvertPG2SS {
 		/// <param name="table"></param>
 		private static void WriteDropCommand(this TextWriter tw, string schema, string table) {
 			// TODO: 2015-09-27: the issue of constraints such as FOREIGN KEYS will come up.
-			var qual = "[" + schema + "." + table + "]";
+			var qual = "[" + schema + "].[" + table + "]";
 			tw.Write("IF OBJECT_ID ('" + qual + "') ");
 			tw.WriteLine("IS NOT NULL DROP TABLE " + qual + ";");
 		}
@@ -358,7 +364,7 @@ namespace ConvertPG2SS {
 		/// <param name="table"></param>
 		private static void WriteTruncateCommand(this TextWriter tw, string schema, string table) {
 			// TODO: 2015-09-27: the issue of constraints such as FOREIGN KEYS will come up.
-			var qual = "[" + schema + "." + table + "]";
+			var qual = "[" + schema + "].[" + table + "]";
 			tw.WriteLine("TRUNCATE TABLE " + qual+ ";");
 		}
 
@@ -442,7 +448,7 @@ namespace ConvertPG2SS {
 		/// <param name="conn"></param>
 		private static void WriteTableDesc(this TextWriter tw, NpgsqlConnection conn) {
 			const string sql =
-				@"SELECT n.nspname, c.relname, d.description
+				@"SELECT n.nspname AS schema_name, c.relname AS table_name, d.description
 				FROM	pg_description d
 						JOIN pg_class c ON d.objoid = c.oid
 						JOIN pg_namespace n ON c.relnamespace = n.oid
@@ -460,9 +466,9 @@ namespace ConvertPG2SS {
 							"EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'");
 						tw.WriteLine(comment + "' ,");
 						tw.Write("@level0type=N'SCHEMA',@level0name=N'");
-						tw.WriteLine(reader["nspname"] + "' ,");
+						tw.WriteLine(reader["schema_name"] + "' ,");
 						tw.Write("@level1type=N'TABLE',@level1name=N'");
-						tw.WriteLine(reader["relname"] + "'");
+						tw.WriteLine(reader["table_name"] + "'");
 						tw.WriteLine("GO");
 						tw.WriteLine();
 					}
@@ -480,8 +486,10 @@ namespace ConvertPG2SS {
 			// INDOPTION_DESC			0x0001 = values are in reverse order (DESC)
 			// INDOPTION_NULLS_FIRST	0x0002 = NULLs are first instead of last
 			const string sql =
-				@"SELECT n.nspname, c.relname table_name, d.relname index_name, i.indisprimary,
-						i.indisunique, a.attname, i.indoption[a.attnum - 1] as option
+				@"SELECT n.nspname AS schema_name, c.relname AS table_name, 
+						d.relname AS index_name, i.indisprimary,
+						i.indisunique, a.attname AS column_name, 
+						i.indoption[a.attnum - 1] as option
 				FROM	pg_index i
 						LEFT JOIN pg_attribute a
 							  ON a.attrelid = i.indrelid
@@ -506,7 +514,7 @@ namespace ConvertPG2SS {
 
 					// TODO: 2015-09-25: handle ASC, DESC, NULL FIRST options.
 					while (reader.Read()) {
-						var schema = reader["nspname"].ToString();
+						var schema = reader["schema_name"].ToString();
 						var table = reader["table_name"].ToString();
 						var index = reader["index_name"].ToString();
 
@@ -537,7 +545,7 @@ namespace ConvertPG2SS {
 						}
 						else sb.Append(", ");
 
-						sb.Append("[" + reader["attname"] + "]");
+						sb.Append("[" + reader["column_name"] + "]");
 					}
 
 					if (sb.Length > 0)
