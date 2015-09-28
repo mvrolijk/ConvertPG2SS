@@ -63,7 +63,7 @@ namespace ConvertPG2SS {
 
 			var path = Path.Combine(
 				_params["other.work_path"].ToString(),
-				"bulk_copy.sql");
+				"02_bulk_copy.sql");
 
 			using (var sw = new StreamWriter(path, false, Encoding.Default)) 
 			using (var cmd = new NpgsqlCommand(sql, conn)) {
@@ -108,15 +108,24 @@ namespace ConvertPG2SS {
 
 				_log.Info("");
 				_log.Write('I', Constants.LogTsType, "Generating import files:");
+				long totalRecCount = 0;
 
 				foreach (DataRow row in dt.Rows) {
 					var schema = row["schema_name"].ToString();
 					var table = row["table_name"].ToString();
 					using (var sw = new StreamWriter(ImportFile(schema, table), false, Encoding.Default)) {
-						sw.CreateImportFile(schema, table, conn);
+						totalRecCount += sw.CreateImportFile(schema, table, conn);
 					}
 				}
 				dt.Dispose();
+				_log.Info("");
+				_log.Write(
+					'I', 
+					Constants.LogTsType, 
+					string.Format(
+						CultureInfo.InvariantCulture,
+						"Total records processed: {0,13:n0}",
+						totalRecCount));
 			}
 		}
 
@@ -127,7 +136,7 @@ namespace ConvertPG2SS {
 		/// <param name="schema"></param>
 		/// <param name="table"></param>
 		/// <param name="conn"></param>
-		private static void CreateImportFile(
+		private static int CreateImportFile(
 			this TextWriter sw, 
 			string schema, 
 			string table, 
@@ -156,13 +165,13 @@ namespace ConvertPG2SS {
 
 			var dt = (DataTable) _params[Constants.PgSchemaTable];
 			var colInfo = dt.Select(criteria, "column_index");
+			var recCount = 0;
 
 			using (var cmd = new NpgsqlCommand(sql, conn)) {
 				using (var reader = cmd.ExecuteReader()) {
-					var cnt = 0;
 					while (reader.Read()) {
 						sw.WriteLine(ProcessRow(reader, colInfo));
-						cnt++;
+						recCount++;
 					}
 
 					var pad = (49 - schema.Length - table.Length);
@@ -177,10 +186,11 @@ namespace ConvertPG2SS {
 						string.Format(
 							CultureInfo.InvariantCulture,
 							"{0}: {1,13:n0}",
-							qualName, cnt),
+							qualName, recCount),
 						1);
 				}
 			}
+			return recCount;
 		}
 
 		/// <summary>
