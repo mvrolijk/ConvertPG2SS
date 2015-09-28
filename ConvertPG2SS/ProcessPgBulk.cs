@@ -27,6 +27,7 @@
 
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Data;
 using System.Globalization;
 using System.IO;
@@ -164,32 +165,47 @@ namespace ConvertPG2SS {
 				schema, table);
 
 			var dt = (DataTable) _params[Constants.PgSchemaTable];
+			NpgsqlCommand cmd = null;
+			NpgsqlDataReader reader = null;
 			var colInfo = dt.Select(criteria, "column_index");
 			var recCount = 0;
 
-			using (var cmd = new NpgsqlCommand(sql, conn)) {
-				using (var reader = cmd.ExecuteReader()) {
-					while (reader.Read()) {
-						sw.WriteLine(ProcessRow(reader, colInfo));
-						recCount++;
-					}
+			try {
+				cmd = new NpgsqlCommand(sql, conn);
+				reader = cmd.ExecuteReader();
 
-					var pad = (49 - schema.Length - table.Length);
-					string qualName;
-
-					if (pad > 0) qualName = schema + "." + table + new string('.', pad);
-					else qualName = schema + "." + table;
-
-					_log.Write(
-						'I',
-						Constants.LogTsType,
-						string.Format(
-							CultureInfo.InvariantCulture,
-							"{0}: {1,13:n0}",
-							qualName, recCount),
-						1);
+				while (reader.Read()) {
+					sw.WriteLine(ProcessRow(reader, colInfo));
+					recCount++;
+					//if (recCount%100000 == 0) {
+					//	sw.Flush();
+					//	_log.Write('T', Constants.LogTsType, recCount.ToString("N0"), 2);
+					//}
 				}
 			}
+			catch (NpgsqlException ex) {
+				_log.WriteEx('F', Constants.LogTsType, ex);
+			}
+			finally {
+				if (reader != null) reader.Dispose();
+				if (cmd != null) cmd.Dispose();
+			}
+
+			var pad = (49 - schema.Length - table.Length);
+			string qualName;
+
+			if (pad > 0) qualName = schema + "." + table + new string('.', pad);
+			else qualName = schema + "." + table;
+
+			_log.Write(
+				'I',
+				Constants.LogTsType,
+				string.Format(
+					CultureInfo.InvariantCulture,
+					"{0}: {1,13:n0}",
+					qualName, recCount),
+				1);
+
 			return recCount;
 		}
 
@@ -199,7 +215,7 @@ namespace ConvertPG2SS {
 		/// <param name="reader"></param>
 		/// <param name="colInfo"></param>
 		/// <returns></returns>
-		private static string ProcessRow(IDataRecord reader, DataRow[] colInfo) {
+		private static string ProcessRow(IDataRecord reader, IReadOnlyList<DataRow> colInfo) {
 			var sb = new StringBuilder();
 
 			for (var i = 0; i < reader.FieldCount; i++) {

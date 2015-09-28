@@ -133,11 +133,11 @@ namespace ConvertPG2SS {
 		private static void GenerateSsScripts(DataTable dt, NpgsqlConnection conn) {
 			var schemas = new List<string>();
 			var createPath = Path.Combine(
-				_params["other.work_path"].ToString(), "create_tables.sql");
+				_params["other.work_path"].ToString(), "01_create_tables.sql");
 			var dropPath = Path.Combine(
-				_params["other.work_path"].ToString(),"drop_tables.sql");
+				_params["other.work_path"].ToString(),"51_drop_tables.sql");
 			var truncPath = Path.Combine(
-				_params["other.work_path"].ToString(),"truncate_tables.sql");
+				_params["other.work_path"].ToString(),"50_truncate_tables.sql");
 
 			StreamWriter swCreate = null;
 			StreamWriter swDrop = null;
@@ -427,17 +427,16 @@ namespace ConvertPG2SS {
 		/// <param name="schemas"></param>
 		private static void GenCreateSchemas(IEnumerable<string> schemas) {
 			var path = 
-				Path.Combine(_params["other.work_path"].ToString(), "create_schemas.sql");
+				Path.Combine(_params["other.work_path"].ToString(), "00_create_schemas.sql");
 
 			using (var sw = new StreamWriter(path, false, Encoding.Default)) {
-				sw.WriteBeginTrans();
+				sw.WriteUseDb();
 
 				foreach (var schema in schemas) {
 					sw.WriteLine("CREATE SCHEMA " + schema + ";");
 					sw.WriteLine("GO");
 					sw.WriteLine();
 				}
-				sw.WriteCommitTrans();
 			}
 		}
 
@@ -602,13 +601,20 @@ namespace ConvertPG2SS {
 		}
 
 		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="tw"></param>
+		private static void WriteUseDb(this TextWriter tw) {
+			tw.WriteLine("USE " + _params["mssql.database"] + ";");
+			tw.WriteLine("GO");
+			tw.WriteLine();
+		}
+		/// <summary>
 		///     Write begin transaction.
 		/// </summary>
 		/// <param name="tw"></param>
 		private static void WriteBeginTrans(this TextWriter tw) {
-			tw.WriteLine("USE " + _params["mssql.database"] + ";");
-			tw.WriteLine("GO");
-			tw.WriteLine();
+			tw.WriteUseDb();
 			tw.WriteLine("BEGIN TRANSACTION;");
 			tw.WriteLine();
 		}

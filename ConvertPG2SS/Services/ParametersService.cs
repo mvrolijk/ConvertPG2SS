@@ -303,6 +303,11 @@ namespace ConvertPG2SS.Services {
 						  _param[keyComp + "commandtimeout"] + ";");
 			}
 
+			if (_param.ContainsKey(keyComp + "buffersize")) {
+				sb.Append("Buffer Size=" +
+						  _param[keyComp + "buffersize"] + ";");
+			}
+
 			return sb.ToString();
 		}
 	}
