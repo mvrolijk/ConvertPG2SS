@@ -48,6 +48,8 @@ namespace ConvertPG2SS {
 			var frmConn = (NpgsqlConnection)_params[Constants.PgConnection];
 
 			CreateBulkFile(frmConn);
+			if (!bool.Parse(_params["postgres.process_bulk"].ToString())) return;
+
 			CreateImportFiles(frmConn);
 
 		}
