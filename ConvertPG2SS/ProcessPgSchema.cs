@@ -116,6 +116,7 @@ namespace ConvertPG2SS {
 				dt.PrimaryKey = columns;
 
 				GenerateSsScripts(dt, frmConn);
+				GenerateBuildIndexes(frmConn);	
 			}
 			catch (NpgsqlException ex) {
 				_log.WriteEx('E', Constants.LogTsType, ex);
@@ -204,7 +205,6 @@ namespace ConvertPG2SS {
 				// Complete last writes.
 				swCreate.CloseCreateTable(defaults);
 				swCreate.WriteTableDesc(conn);
-				swCreate.BuildIndexes(conn);
 				swCreate.WriteCommitTrans();
 				swDrop.WriteCommitTrans();
 				swTrunc.WriteCommitTrans();
@@ -478,9 +478,11 @@ namespace ConvertPG2SS {
 		/// <summary>
 		///     Write the different create indeces/key constraint statements. 
 		/// </summary>
-		/// <param name="tw"></param>
 		/// <param name="conn"></param>
-		private static void BuildIndexes(this TextWriter tw, NpgsqlConnection conn) {
+		private static void GenerateBuildIndexes(NpgsqlConnection conn) {
+			var indexPath = Path.Combine(
+				_params["other.work_path"].ToString(), "03_create_indexes_&_constraints.sql");
+
 			// option column values:
 			// INDOPTION_DESC			0x0001 = values are in reverse order (DESC)
 			// INDOPTION_NULLS_FIRST	0x0002 = NULLs are first instead of last
@@ -502,7 +504,10 @@ namespace ConvertPG2SS {
 				WHERE  n.nspname NOT IN('pg_toast', 'pg_catalog', 'information_schema', 'public')
 				ORDER  BY n.nspname ASC, c.relname ASC, d.relname ASC, a.attnum";
 
-			using (var cmd = new NpgsqlCommand(sql, conn)) {
+			using (var cmd = new NpgsqlCommand(sql, conn)) 
+			using (var sw = new StreamWriter(indexPath, false, Encoding.Default)) {
+				sw.WriteBeginTrans();
+
 				var savedSchema = "";
 				var savedTable = "";
 				var savedIndex = "";
@@ -522,7 +527,7 @@ namespace ConvertPG2SS {
 							|| !savedIndex.Equals(index)) 
 						{
 							if (sb.Length > 0) 
-								tw.WriteIndex
+								sw.WriteIndex
 									(savedSchema, 
 									savedTable,
 									savedIndex,
@@ -548,12 +553,14 @@ namespace ConvertPG2SS {
 					}
 
 					if (sb.Length > 0)
-						tw.WriteIndex(
+						sw.WriteIndex(
 							savedSchema, 
 							savedTable, 
 							savedIndex, 
 							savedType, 
 							sb.ToString());
+
+					sw.WriteCommitTrans();
 				}
 			}
 		}
