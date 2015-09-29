@@ -28,7 +28,15 @@ It's in a pre-alpha stage, so *caveat emptor*.
   - Text values are not enclosed in quotes.
   - Arrays are expanded e.g. {1,2,3,4} -> 1\t2\t3\t4.
 
+## TODO:
+
+* Unique and foreing keys
+* Triggers
+
 ## Wish List
 
-The plan is to eventually include SS-to-PG code also.
+* The plan is to eventually include SS-to-PG code also.
+* Unit testing
+* Better character set / encoding support
+* Domains
 
