@@ -27,32 +27,43 @@
 
 namespace ConvertPG2SS.Common {
 	internal static class Constants {
-		public const string AppName = "ConvertPG2SS";
-		public const char Tab = '\t';
+		public static string AppName => "ConvertPG2SS";
+		public static char   Tab => '\t';
 
 		// Security
-		public const string AesKeyFile = "aes.key";
-		public const int KeySize = 32;
-		public const int VectorSize = 16;
+		public static string AesKeyFile => "aes.key";
+		public static int    KeySize => 32;
+		public static int    VectorSize => 16;
 
-		// SQL
-		public const string PgConnection  = "pg_conn";
-		public const string PgConnKey     = "pgconnection";
-		public const string PgSchemaTable = "pgschematable"; 
+		// PostgreSQL
+		public static string PgConnection => "pg_conn";
+		public static string PgTables => "pg_tables";
+		public static string PgSchemaTable => "pg_schematable";
+		public static string PgTypeTable => "pg_typetable";
+
+		// Scripts
+		public static string CreateSchemas => "00_create_schemas.sql";
+		public static string CreateTypes => "01_create_types.sql";
+		public static string CreateTables => "02_create_tables.sql";
+		public static string CreateBulkCopy => "03_bulk_copy.sql";
+		public static string CreateIndexesEtAl => "04_create_indexes_&_constraints.sql";
+		public static string CreateSTruncateTables => "50_truncate_tables.sql";
+		public static string CreateDropTables => "51_drop_tables.sql";
+		public static string CreateDropTypes => "52_drop_types.sql";
 
 		// Other
-		public const string TimeStamp = "yyyy'-'MM'-'dd' 'HH':'mm':'ss.ffff";
-		public const string IsoDate = "yyyy-MM-dd";
-		public const string IsoDateNoDelim = "yyyyMMdd";
+		public static string TimeStamp => "yyyy'-'MM'-'dd' 'HH':'mm':'ss.ffff";
+		public static string IsoDate => "yyyy-MM-dd";
+		public static string IsoDateNoDelim => "yyyyMMdd";
 
 		// Logger
-		public const string LogNameDateTime = "yyyy'-'MM'-'dd'_'HH'-'mm'-'ss";
-		public const long ArchiveAboveSize = 10485760L;
-		public const int MaxArchiveFiles = 60;
-		public const char LogTsType  = 'T';
-		public const char LogInfo    = 'I';
-		public const char LogWarning = 'W';
-		public const char LogError   = 'E';
-		public const char Logfatal   = 'I';
+		public static string LogNameDateTime => "yyyy'-'MM'-'dd'_'HH'-'mm'-'ss";
+		public static long ArchiveAboveSize => 10485760L;
+		public static int MaxArchiveFiles => 60;
+		public static char LogTsType => 'T';
+		public static char LogInfo => 'I';
+		public static char LogWarning => 'W';
+		public static char LogError => 'E';
+		public static char Logfatal => 'I';
 	}
 }
