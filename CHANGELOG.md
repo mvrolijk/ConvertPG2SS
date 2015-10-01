@@ -2,8 +2,16 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.0.7] - 2015-09-30
+### Added
+- Custom types.
+
+### Changed
+- Changed from VS 2013 to 2015.
+- Bunch of code refactoring.
+
 ## [0.0.6] - 2015-09-29
-## Changed
+### Changed
 - Move index & primary key creation to another file.
 
 ## [0.0.5] - 2015-09-28

@@ -12,6 +12,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{282EF264-42FE-401F-AA2F-2540BA4AA144}"
 	ProjectSection(SolutionItems) = preProject
 		AUTHORS.txt = AUTHORS.txt
+		CHANGELOG.md = CHANGELOG.md
 		COPYING.txt = COPYING.txt
 		README.md = README.md
 		THANKS.txt = THANKS.txt

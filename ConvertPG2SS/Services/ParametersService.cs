@@ -31,6 +31,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 using ConvertPG2SS.Common;
 using ConvertPG2SS.Helpers;
@@ -58,8 +59,6 @@ namespace ConvertPG2SS.Services {
 		private readonly Dictionary<string, object> 
 			_param = new Dictionary<string, object>();
 
-		public char Level { get; private set; }
-
 		public ParametersService() {
 			LoadAesKey();
 			Reload();
@@ -73,21 +72,20 @@ namespace ConvertPG2SS.Services {
 			_param.Clear();
 			ProcessIniFile();
 
-			var pgConn = ConnectToPgDb(Constants.PgConnKey);
+			var pgConn = ConnectToPgDb(Parameters.PgConnSection);
 
 			if (pgConn == null) {
 				General.Abort("Connection to one or more SQL databases failed.");
 			}
 
 			_param.Add(Constants.PgConnection, pgConn);
-			_param.Add(Constants.PgSchemaTable, new DataTable(Constants.PgSchemaTable));
 
-			if (_param.ContainsKey("logging.level")) {
-				var str = _param["logging.level"].ToString();
-				if (!string.IsNullOrEmpty(str.Trim())) Level = str[0];
-			}
-			
-			if (char.IsWhiteSpace(Level)) Level = 'I';
+			// Add tables.
+			var tblDict = new Dictionary<string, DataTable> {
+				{Constants.PgSchemaTable, new DataTable(Constants.PgSchemaTable)},
+				{Constants.PgTypeTable, new DataTable(Constants.PgTypeTable)}
+			};
+			_param.Add(Constants.PgTables,tblDict);
 		}
 
 		
@@ -183,8 +181,9 @@ namespace ConvertPG2SS.Services {
 				((NpgsqlConnection)_param[Constants.PgConnection]).Dispose();
 			}
 
-			if (_param[Constants.PgSchemaTable] != null) {
-				((DataTable) _param[Constants.PgSchemaTable]).Dispose();
+			var tblDict = (Dictionary<string, DataTable>)_param[Constants.PgTables];
+			foreach (var kvp in tblDict.Where(kvp => kvp.Value != null)) {
+				kvp.Value.Dispose();
 			}
 		}
 
@@ -194,13 +193,13 @@ namespace ConvertPG2SS.Services {
 		private void ProcessIniFile() {
 			var parser = new FileIniDataParser();
 			IniData data = null;
-			const string iniFile = Constants.AppName + ".ini";
+			var iniFile = Constants.AppName + ".ini";
 
 			try {
 				data = parser.ReadFile(iniFile);
 			}
 			catch (ParsingException ex) {
-				const string msg = "FATAL ERROR: parsing " + iniFile + ".";
+				var msg = "FATAL ERROR: parsing " + iniFile + ".";
 				_log.FatalException(msg, ex);
 				General.Abort(msg);
 			}

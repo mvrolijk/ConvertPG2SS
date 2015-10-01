@@ -50,80 +50,12 @@ namespace ConvertPG2SS {
 
 			var frmConn = (NpgsqlConnection) _params[Constants.PgConnection];
 			Postgres.CreateTempAryTables(frmConn);
+			PostgresSchemaTables.CreateTables();
 
-			#region PostgreSQL query to retrieve coloumn information from pg_catalog.
-
-			const string sql =
-				@"SELECT n.nspname AS schema_name, c.relname AS table_name,
-				a.attname AS column_name, a.attnum AS column_index, 
-				(a.atttypid::regtype)::text AS regtype, a.attnotnull AS notnull,
-				format_type(a.atttypid, a.atttypmod) AS data_type, a.attndims AS dims,
-				CASE
-					WHEN a.atttypid = ANY (ARRAY[1043::oid, 1015::oid]) THEN a.atttypmod - 4
-				ELSE NULL::integer
-				END AS max_char_size,
-				CASE a.atttypid
-					WHEN 21 THEN 16
-					WHEN 23 THEN 32
-					WHEN 20 THEN 64
-					WHEN 1700 THEN
-					CASE
-						WHEN a.atttypmod = (-1) THEN NULL::integer
-						ELSE ((a.atttypmod - 4) >> 16) & 65535
-					END
-					WHEN 700 THEN 24
-					WHEN 701 THEN 53
-					ELSE NULL::integer
-				END AS numeric_precision,
-				CASE
-					WHEN a.atttypid = ANY (ARRAY[21::oid, 23::oid, 20::oid]) THEN 0
-					WHEN a.atttypid = 1700::oid THEN
-						CASE
-							WHEN a.atttypmod = (-1) THEN NULL::integer
-							ELSE (a.atttypmod - 4) & 65535
-						END
-					ELSE NULL::integer
-				END AS numeric_scale,
-				d.adsrc AS default_val,
-				(SELECT col_description(a.attrelid, a.attnum::integer) AS col_description)
-					AS comment
-				FROM pg_class c
-					LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
-					LEFT JOIN pg_tablespace t ON t.oid = c.reltablespace
-					LEFT JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0
-					LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
-				WHERE 
-					c.relkind = 'r'::""char""
-					AND n.nspname NOT IN('pg_catalog', 'information_schema', 'public')
-				ORDER BY n.nspname ASC, c.relname ASC, a.attnum ASC";
-
-			#endregion
-
-			var dt = (DataTable)_params[Constants.PgSchemaTable];
-			NpgsqlDataAdapter da = null;
-
-			try {
-				da = new NpgsqlDataAdapter(sql, frmConn);
-				da.Fill(dt);
-
-				if (dt.Rows.Count == 0) return;
-
-				// Add primary key to table.
-				var columns = new DataColumn[3];
-				columns[0] = dt.Columns["schema_name"];
-				columns[1] = dt.Columns["table_name"];
-				columns[2] = dt.Columns["column_name"];
-				dt.PrimaryKey = columns;
-
-				GenerateSsScripts(dt, frmConn);
-				GenerateBuildIndexes(frmConn);	
-			}
-			catch (NpgsqlException ex) {
-				_log.WriteEx('E', Constants.LogTsType, ex);
-			}
-			finally {
-				if (da != null) da.Dispose();
-			}
+			var tblDict = ((Dictionary<string, DataTable>)_params[Constants.PgTables]);
+			var dt = tblDict[Constants.PgSchemaTable];
+			GenerateSsScripts(dt, frmConn);
+			GenerateBuildIndexes(frmConn);	
 		}
 
 		/// <summary>
@@ -134,11 +66,11 @@ namespace ConvertPG2SS {
 		private static void GenerateSsScripts(DataTable dt, NpgsqlConnection conn) {
 			var schemas = new List<string>();
 			var createPath = Path.Combine(
-				_params["other.work_path"].ToString(), "01_create_tables.sql");
+				_params[Parameters.OtherWorkPath].ToString(), Constants.CreateTables);
 			var dropPath = Path.Combine(
-				_params["other.work_path"].ToString(),"51_drop_tables.sql");
+				_params[Parameters.OtherWorkPath].ToString(), Constants.CreateDropTables);
 			var truncPath = Path.Combine(
-				_params["other.work_path"].ToString(),"50_truncate_tables.sql");
+				_params[Parameters.OtherWorkPath].ToString(), Constants.CreateSTruncateTables);
 
 			StreamWriter swCreate = null;
 			StreamWriter swDrop = null;
@@ -215,9 +147,9 @@ namespace ConvertPG2SS {
 				_log.WriteEx('E', Constants.LogTsType, ex);
 			}
 			finally {
-				if (swCreate != null) swCreate.Dispose();
-				if (swDrop != null) swDrop.Dispose();
-				if (swTrunc != null) swTrunc.Dispose();
+				swCreate?.Dispose();
+				swDrop?.Dispose();
+				swTrunc?.Dispose();
 			}
 		}
 
@@ -237,7 +169,6 @@ namespace ConvertPG2SS {
 			var sb = new StringBuilder();
 			var fmt = "";
 			var ext = "";
-			var dt = Postgres.SsDataType(row["regtype"].ToString());
 			var tmpDef = new string[5];
 			var aryDim = dim;
 
@@ -249,31 +180,21 @@ namespace ConvertPG2SS {
 				aryDim--;
 			}
 
+			// TODO: 2015-09-29: create custom types in SQL Server.
+			var regType = row["regtype"].ToString();
+			var dataType = Postgres.SsDataType(regType);
+			if (string.IsNullOrEmpty(dataType)) {
+			}
+
+
 			for (var i = 0; i <= aryDim; i++) {
 				if (aryDim > 0) ext = (i + 1).ToString(fmt);
 				if (i > 0) tw.WriteLine(",");
 
 				sb.Append(Constants.Tab + "[" + row["column_name"] + ext + "]");
-				sb.Append(" [" + dt + "]");
+				sb.Append(" [" + dataType + "]");
 
-				// Text field has a size.
-				if (row["max_char_size"] != DBNull.Value) {
-					sb.Append("(");
-					sb.Append(((int)row["max_char_size"]).ToString().Trim());
-					sb.Append(")");
-				}
-				// Number field has precision and scale.
-				else if (row["numeric_precision"] != DBNull.Value) {
-					if (dt == "numeric" || dt == "dec" || dt == "decimal") {
-						sb.Append("(" + ((int)row["numeric_precision"]).ToString().Trim());
-						var scale = (int)row["numeric_scale"];
-						if (scale > 0) sb.Append("," + scale);
-						sb.Append(")");
-					}
-				}
-
-				if (((bool)row["notnull"])) sb.Append(" NOT NULL");
-				else sb.Append(" NULL");
+				sb.Append(GenerateColumnDimDef(row, dataType));
 
 				if (i == 0) {
 					// Store information to generate default and comment definitions later.
@@ -291,6 +212,37 @@ namespace ConvertPG2SS {
 			}
 
 			def = tmpDef;
+		}
+
+		/// <summary>
+		///     Generate the column size definition.
+		/// </summary>
+		/// <param name="row"></param>
+		/// <param name="dataType"></param>
+		/// <returns></returns>
+		private static string GenerateColumnDimDef(DataRow row, string dataType) {
+			var sb = new StringBuilder();
+
+			// Text field has a size.
+			if (row["max_char_size"] != DBNull.Value) {
+				sb.Append("(");
+				sb.Append(((int)row["max_char_size"]).ToString().Trim());
+				sb.Append(")");
+			}
+			// Number field has precision and scale.
+			else if (row["numeric_precision"] != DBNull.Value) {
+				if (dataType == "numeric" || dataType == "dec" || dataType == "decimal") {
+					sb.Append("(" + ((int)row["numeric_precision"]).ToString().Trim());
+					var scale = (int)row["numeric_scale"];
+					if (scale > 0) sb.Append("," + scale);
+					sb.Append(")");
+				}
+			}
+
+			if (((bool)row["notnull"])) sb.Append(" NOT NULL");
+			else sb.Append(" NULL");
+
+			return sb.ToString();
 		}
 
 		/// <summary>
@@ -426,14 +378,14 @@ namespace ConvertPG2SS {
 		/// </summary>
 		/// <param name="schemas"></param>
 		private static void GenCreateSchemas(IEnumerable<string> schemas) {
-			var path = 
-				Path.Combine(_params["other.work_path"].ToString(), "00_create_schemas.sql");
+			var path = Path.Combine(
+				_params[Parameters.OtherWorkPath].ToString(), Constants.CreateSchemas);
 
 			using (var sw = new StreamWriter(path, false, Encoding.Default)) {
 				sw.WriteUseDb();
 
 				foreach (var schema in schemas) {
-					sw.WriteLine("CREATE SCHEMA " + schema + ";");
+					sw.WriteLine("CREATE SCHEMA ]" + schema + "];");
 					sw.WriteLine("GO");
 					sw.WriteLine();
 				}
@@ -481,7 +433,7 @@ namespace ConvertPG2SS {
 		/// <param name="conn"></param>
 		private static void GenerateBuildIndexes(NpgsqlConnection conn) {
 			var indexPath = Path.Combine(
-				_params["other.work_path"].ToString(), "03_create_indexes_&_constraints.sql");
+				_params[Parameters.OtherWorkPath].ToString(), Constants.CreateIndexesEtAl);
 
 			// option column values:
 			// INDOPTION_DESC			0x0001 = values are in reverse order (DESC)
@@ -582,22 +534,27 @@ namespace ConvertPG2SS {
 			char typ, 
 			string columns) 
 		{
+			var qualTable = "[" + schema + "].[" + table + "]";
+
 			switch (typ) {
 				case 'P':
-					tw.WriteLine("GO");
-					tw.WriteLine("ALTER TABLE " + schema + "." + table);
+					tw.WriteLine("ALTER TABLE " + qualTable);
 					tw.Write("ADD CONSTRAINT PK_" + table + " PRIMARY KEY CLUSTERED (");
 					tw.WriteLine(columns + ");");
 					break;
 				case 'I':
 					tw.Write("CREATE INDEX ");
-					tw.WriteLine(name + " ON " + schema + "." + table);
+					tw.WriteLine(name + " ON " + qualTable);
 					tw.WriteLine("(" + columns + ")");
 					tw.WriteLine(
 						"WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, ");
 					tw.WriteLine(
 						"SORT_IN_TEMPDB = OFF, DROP_EXISTING = OFF, ONLINE = OFF, ");
 						tw.WriteLine("ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON)");
+					break;
+				case 'U':
+					tw.WriteLine("ALTER TABLE " + qualTable);
+					tw.WriteLine("ADD CONSTRAINT UK_" + table + " UNIQUE (" + columns + ");");
 					break;
 				default:
 					throw new NotImplementedException();
@@ -612,7 +569,7 @@ namespace ConvertPG2SS {
 		/// </summary>
 		/// <param name="tw"></param>
 		private static void WriteUseDb(this TextWriter tw) {
-			tw.WriteLine("USE " + _params["mssql.database"] + ";");
+			tw.WriteLine("USE " + _params[Parameters.MsSqlDatabase] + ";");
 			tw.WriteLine("GO");
 			tw.WriteLine();
 		}

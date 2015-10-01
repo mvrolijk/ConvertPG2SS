@@ -162,29 +162,17 @@ namespace ConvertPG2SS.Services {
 		/// </summary>
 
 		#region Is...Enabled methods
-		public new bool IsTraceEnabled {
-			get { return _logger.IsTraceEnabled; }
-		}
+		public new bool IsTraceEnabled => _logger.IsTraceEnabled;
 
-		public new bool IsDebugEnabled {
-			get { return _logger.IsDebugEnabled; }
-		}
+		public new bool IsDebugEnabled => _logger.IsDebugEnabled;
 
-		public new bool IsInfoEnabled {
-			get { return _logger.IsInfoEnabled; }
-		}
+		public new bool IsInfoEnabled => _logger.IsInfoEnabled;
 
-		public new bool IsWarnEnabled {
-			get { return _logger.IsWarnEnabled; }
-		}
+		public new bool IsWarnEnabled => _logger.IsWarnEnabled;
 
-		public new bool IsErrorEnabled {
-			get { return _logger.IsErrorEnabled; }
-		}
+		public new bool IsErrorEnabled => _logger.IsErrorEnabled;
 
-		public new bool IsFatalEnabled {
-			get { return _logger.IsFatalEnabled; }
-		}
+		public new bool IsFatalEnabled => _logger.IsFatalEnabled;
 
 		#endregion
 

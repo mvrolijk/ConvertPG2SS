@@ -48,7 +48,7 @@ namespace ConvertPG2SS {
 			var frmConn = (NpgsqlConnection)_params[Constants.PgConnection];
 
 			CreateBulkFile(frmConn);
-			if (!bool.Parse(_params["postgres.process_bulk"].ToString())) return;
+			if (!bool.Parse(_params[Parameters.PostgresProcessBulk].ToString())) return;
 
 			CreateImportFiles(frmConn);
 
@@ -65,12 +65,11 @@ namespace ConvertPG2SS {
 				ORDER BY schema_name, table_name";
 
 			var path = Path.Combine(
-				_params["other.work_path"].ToString(),
-				"02_bulk_copy.sql");
+				_params[Parameters.OtherWorkPath].ToString(), Constants.CreateBulkCopy);
 
 			using (var sw = new StreamWriter(path, false, Encoding.Default)) 
 			using (var cmd = new NpgsqlCommand(sql, conn)) {
-				sw.WriteLine("USE " + _params["mssql.database"] + ";");
+				sw.WriteLine("USE " + _params[Parameters.MsSqlDatabase] + ";");
 				sw.WriteLine("GO");
 				sw.WriteLine();
 				sw.WriteLine("BEGIN TRANSACTION;");
@@ -145,7 +144,7 @@ namespace ConvertPG2SS {
 			string table, 
 			NpgsqlConnection conn) 
 		{
-			var limit = int.Parse(_params["postgres.limit"].ToString());
+			var limit = int.Parse(_params[Parameters.PostgresLimit].ToString());
 			string sql;
 
 			if (limit > 0) {
@@ -189,8 +188,8 @@ namespace ConvertPG2SS {
 				_log.WriteEx('F', Constants.LogTsType, ex);
 			}
 			finally {
-				if (reader != null) reader.Dispose();
-				if (cmd != null) cmd.Dispose();
+				reader?.Dispose();
+				cmd?.Dispose();
 			}
 
 			var pad = (49 - schema.Length - table.Length);
@@ -274,8 +273,7 @@ namespace ConvertPG2SS {
 		/// <returns></returns>
 		private static string ImportFile(string schema, string table) {
 			return Path.Combine(
-			 _params["other.dump_path"].ToString(),
-			 schema + "_" + table + ".tsv");
+			 _params[Parameters.OtherDumpPath].ToString(), schema + "_" + table + ".tsv");
 		}
 	}
 }

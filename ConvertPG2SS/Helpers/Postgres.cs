@@ -22,14 +22,13 @@
 // <date>2015-04-21</date>
 // <time>19:37</time>
 //
-// <summary>This partial class implements various SQL data manipulation methods.</summary>
+// <summary>This class implements various SQL data manipulation methods.</summary>
 //----------------------------------------------------------------------------------------
 
 using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Globalization;
-using System.Linq;
 using ConvertPG2SS.Common;
 using ConvertPG2SS.Interfaces;
 using Npgsql;
@@ -37,8 +36,11 @@ using Npgsql;
 namespace ConvertPG2SS.Helpers {
 	internal static class Postgres {
 
-		//private static readonly IBLogger Log = new BLoggerService();
 		private static readonly IBLogger Log = Program.GetInstance<IBLogger>();
+		private static readonly IParameters Params = Program.GetInstance<IParameters>();
+
+		private static readonly Dictionary<string, DataTable> PgTables =
+			(Dictionary<string, DataTable>) Params[Constants.PgTables];
 
 		/// <summary>
 		///     Executes a SQL statement.
@@ -80,13 +82,13 @@ namespace ConvertPG2SS.Helpers {
 		{
 			string sql;
 			if (@select.Length > 0) {
-				sql = String.Format(
+				sql = string.Format(
 					CultureInfo.InvariantCulture,
 					"SELECT COUNT(*) FROM {0} WHERE {1}",
 					table, @select);
 			}
 			else {
-				sql = String.Format(
+				sql = string.Format(
 					CultureInfo.InvariantCulture,
 					"SELECT COUNT(*) FROM {0}",
 					table);
@@ -125,7 +127,7 @@ namespace ConvertPG2SS.Helpers {
 		{
 			string sql;
 			if (@select.Length > 0) {
-				sql = String.Format(
+				sql = string.Format(
 					CultureInfo.InvariantCulture,
 					"SELECT {0} FROM {1} WHERE {2} LIMIT 1",
 					field,
@@ -133,7 +135,7 @@ namespace ConvertPG2SS.Helpers {
 					@select);
 			}
 			else {
-				sql = String.Format(
+				sql = string.Format(
 					CultureInfo.InvariantCulture,
 					"SELECT {0} FROM {1} LIMIT 1",
 					field,
@@ -172,6 +174,7 @@ namespace ConvertPG2SS.Helpers {
 			string column, 
 			NpgsqlConnection conn) 
 		{
+			// TODO: 2015-09-29: implement postgres.array_limit. Also, get all columns in one go.
 			var dim = GetScalar(
 				"cardinality(" + column + ")",
 				schema + "." + table,
@@ -182,6 +185,12 @@ namespace ConvertPG2SS.Helpers {
 			return dim == null || dim == DBNull.Value ? 0 : (int)dim;
 		}
 
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="conn"></param>
+		/// <param name="log"></param>
+		/// <returns></returns>
 		internal static bool CheckConnection(NpgsqlConnection conn, IBLogger log) {
 			if (conn == null) return false;
 
@@ -204,6 +213,11 @@ namespace ConvertPG2SS.Helpers {
 			return test == 1;
 		}
 
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="pgDataType"></param>
+		/// <returns></returns>
 		internal static string SsDataType(string pgDataType) {
 			var p = pgDataType.IndexOf('[');
 			var dt = p >= 0 ? pgDataType.Substring(0, p) : pgDataType;
@@ -253,10 +267,34 @@ namespace ConvertPG2SS.Helpers {
 				case "xml":
 					return "xml";
 				default:
-					throw new NotImplementedException();
+					return "";
 			}
 		}
 
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="dataType"></param>
+		/// <returns></returns>
+		internal static DataRow PgDomainType(string dataType) {
+			var dt = PgTables[Constants.PgTypeTable];
+			var critera = "type_name = '" + dataType + "'";
+			var rows = dt.Select(critera);
+
+			if (rows.Length == 1) return rows[0];
+			throw new Exception(
+				string.Format(
+					CultureInfo.InvariantCulture,
+					"{0} rows found: 1 expected.",
+					rows.Length));
+
+		}
+
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="def"></param>
+		/// <returns></returns>
 		internal static string SsDefaultValue(string def) {
 			var p = def.IndexOf("::", StringComparison.Ordinal);
 			string typ;
@@ -358,28 +396,5 @@ namespace ConvertPG2SS.Helpers {
 				schema, table);
 			ExecuteSql(sql, conn);
 		}
-
-		//internal static List<string> GetTablePgTypes(
-		//	string schema, 
-		//	string table, 
-		//	NpgsqlConnection conn) 
-		//{
-		//	var sql = string.Format(
-		//		CultureInfo.InvariantCulture,
-		//		"SELECT (a.atttypid::regtype)::text AS regtype FROM pg_class c " +
-		//		"LEFT JOIN pg_namespace n ON n.oid = c.relnamespace " +
-		//		"LEFT JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 " +
-		//		"WHERE c.relkind = 'r'::\"char\" AND n.nspname = '{0}' " +
-		//		"      AND c.relname = '{1}' ORDER BY a.attnum ASC",
-		//		schema, table);
-
-		//	using (var da = new NpgsqlDataAdapter(sql, conn))
-		//	using (var dt = new DataTable()) {
-		//		da.Fill(dt);
-
-		//		return dt.Rows.OfType<DataRow>()
-		//			.Select(dr => dr.Field<string>("regtype")).ToList();
-		//	}
-		//}
 	}
 }
