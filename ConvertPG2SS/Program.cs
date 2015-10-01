@@ -63,9 +63,10 @@ namespace ConvertPG2SS {
 			_param.WriteParametersToLog();
 #endif
 			if (General.CheckParams(_param, _log)) {
-				if (bool.Parse(_param[Parameters.OtherPg2Ss].ToString())) 
-					ProcessPgSchema.Do();
-					ProcessPgBulk.Do();				
+				if (bool.Parse(_param[Parameters.OtherPg2Ss].ToString()))
+					if (ProcessPgSchema.Do()) {
+						ProcessPgBulk.Do();
+					}				
 			}
 
 			_param.Dispose();

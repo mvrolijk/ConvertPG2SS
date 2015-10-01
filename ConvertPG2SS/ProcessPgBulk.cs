@@ -115,7 +115,10 @@ namespace ConvertPG2SS {
 				foreach (DataRow row in dt.Rows) {
 					var schema = row["schema_name"].ToString();
 					var table = row["table_name"].ToString();
-					using (var sw = new StreamWriter(ImportFile(schema, table), false, Encoding.Default)) {
+					using (var sw = new StreamWriter(
+											ImportFile(schema, table), 
+											false, 
+											Encoding.Default)) {
 						totalRecCount += sw.CreateImportFile(schema, table, conn);
 					}
 				}

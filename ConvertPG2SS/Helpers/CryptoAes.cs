@@ -48,23 +48,17 @@ namespace ConvertPG2SS.Helpers {
 		///     Constructor.
 		/// </summary>
 		internal CryptoAes(byte[] key, byte[] vector) {
-			if (key == null) throw new ArgumentNullException("key");
-			if (vector == null) throw new ArgumentNullException("vector");
+			if (key == null) throw new ArgumentNullException(nameof(key));
+			if (vector == null) throw new ArgumentNullException(nameof(vector));
 
 			if (key.Length != Constants.KeySize) {
 				throw new ArgumentOutOfRangeException(
-					string.Format(
-						"Key length must be {0}; {1} was provided.",
-						Constants.KeySize,
-						key.Length));
+					$"Key length must be {Constants.KeySize}; {key.Length} was provided.");
 			}
 
 			if (vector.Length != Constants.VectorSize) {
 				throw new ArgumentOutOfRangeException(
-					string.Format(
-						"Vector length must be {0}; {1} was provided.",
-						Constants.VectorSize,
-						vector.Length));
+					$"Vector length must be {Constants.VectorSize}; {vector.Length} was provided.");
 			}
 
 			// This is our encryption method.

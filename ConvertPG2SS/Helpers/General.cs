@@ -36,9 +36,7 @@ namespace ConvertPG2SS.Helpers {
 		///     Something went very wrong: abort.
 		/// </summary>
 		internal static void Abort(string msg, IBLogger log = null) {
-			if (log != null) {
-				log.Write('F', 'T', "Program has aborted due to unrecoverable errors.");
-			}
+			log?.Write('F', 'T', "Program has aborted due to unrecoverable errors.");
 			Environment.Exit(1);
 		}
 

@@ -40,6 +40,10 @@ namespace ConvertPG2SS.Common {
 		public static string PgTables => "pg_tables";
 		public static string PgSchemaTable => "pg_schematable";
 		public static string PgTypeTable => "pg_typetable";
+		public static string PgDefaultSchema => "public";
+
+		// MSSQL
+		public static string SsDefaultSchema => "dbo";
 
 		// Scripts
 		public static string CreateSchemas => "00_create_schemas.sql";

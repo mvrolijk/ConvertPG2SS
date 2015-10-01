@@ -130,7 +130,7 @@ namespace ConvertPG2SS.Helpers {
 				_log.WriteEx('E', Constants.LogTsType, ex);
 			}
 			finally {
-				if (da != null) da.Dispose();
+				da?.Dispose();
 			}
 		}
 
@@ -206,7 +206,7 @@ namespace ConvertPG2SS.Helpers {
 				_log.WriteEx('E', Constants.LogTsType, ex);
 			}
 			finally {
-				if (da != null) da.Dispose();
+				da?.Dispose();
 			}
 		}
 	}

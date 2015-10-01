@@ -44,7 +44,7 @@ namespace ConvertPG2SS {
 		/// <summary>
 		///     Generate the scripts.
 		/// </summary>
-		internal static void Do() {
+		internal static bool Do() {
 			_log = Program.GetInstance<IBLogger>();
 			_params = Program.GetInstance<IParameters>();
 
@@ -53,9 +53,96 @@ namespace ConvertPG2SS {
 			PostgresSchemaTables.CreateTables();
 
 			var tblDict = ((Dictionary<string, DataTable>)_params[Constants.PgTables]);
-			var dt = tblDict[Constants.PgSchemaTable];
-			GenerateSsScripts(dt, frmConn);
-			GenerateBuildIndexes(frmConn);	
+			var schemaTable = tblDict[Constants.PgSchemaTable];
+
+			if (schemaTable.Rows.Count == 0) {
+				_log.Write('E', Constants.LogTsType, "There are no records to be processed.");
+				return false;
+			}
+
+			GenerateSchemaScript(schemaTable);
+
+			var typeTable = tblDict[Constants.PgTypeTable];
+			if (typeTable.Rows.Count > 0) GenerateTypeScripts(typeTable);
+
+			GenerateTableScripts(schemaTable, frmConn);
+			GenerateBuildIndexes(frmConn);
+
+			return true;
+		}
+
+		/// <summary>
+		///     Generate the CREATE SCHEMA statements.
+		/// </summary>
+		/// <param name="dt"></param>
+		private static void GenerateSchemaScript(DataTable dt) {
+			var path = Path.Combine(
+				_params[Parameters.OtherWorkPath].ToString(), Constants.CreateSchemas);
+			var view = new DataView(dt);
+			var distinct = view.ToTable(true, "schema_name");
+
+			using (var sw = new StreamWriter(path, false, Encoding.Default)) {
+				sw.WriteUseDb();
+
+				foreach (var row in distinct.Rows.Cast<DataRow>()
+					.Where(row => !row[0].ToString().Equals(Constants.PgDefaultSchema))) 
+				{
+					sw.WriteLine("CREATE SCHEMA [" + row[0] + "];");
+					sw.WriteLine("GO");
+					sw.WriteLine();
+				}
+			}
+		}
+
+		/// <summary>
+		///     Generate the CREATE TYPE and DROP TYPE statements.
+		/// </summary>
+		/// <param name="dt"></param>
+		private static void GenerateTypeScripts(DataTable dt) {
+			var createPath = Path.Combine(
+				_params[Parameters.OtherWorkPath].ToString(), Constants.CreateTypes);
+			var dropPath = Path.Combine(
+				_params[Parameters.OtherWorkPath].ToString(), Constants.CreateDropTypes);
+
+			StreamWriter swCreate = null;
+			StreamWriter swDrop = null;
+
+			try {
+				swCreate = new StreamWriter(createPath, false, Encoding.Default);
+				swDrop = new StreamWriter(dropPath, false, Encoding.Default);
+
+				swCreate.WriteBeginTrans();
+				swDrop.WriteBeginTrans();
+
+				foreach (DataRow row in dt.Rows) {
+					var schema = row["schema_name"].ToString().Equals(Constants.PgDefaultSchema) 
+						? Constants.SsDefaultSchema 
+						: row["schmea_name"].ToString();
+
+					var typeName = "[" + schema + "].[" + row["type_name"] + "]";
+
+					swCreate.WriteLine("CREATE TYPE " + typeName);
+
+					var dataType = Postgres.SsDataType(row["regtype"].ToString());
+					swCreate.WriteLine(
+						"FROM [" + dataType + "]" + 
+						GenerateColumnDimDef(row, dataType) + ";");
+					swCreate.WriteLine();
+
+					swDrop.WriteLine("DROP TYPE " + typeName + ";");
+				}
+
+				swCreate.WriteCommitTrans();
+				swDrop.WriteCommitTrans();
+			}
+			catch (Exception ex) {
+				_log.WriteEx('E', Constants.LogTsType, ex);
+			}
+			finally {
+				swCreate?.Dispose();
+				swDrop?.Dispose();
+			}
+
 		}
 
 		/// <summary>
@@ -63,8 +150,7 @@ namespace ConvertPG2SS {
 		/// </summary>
 		/// <param name="dt">DataTable with all the PostgreSQL schema/table/column info.</param>
 		/// <param name="conn">PG connection.</param>
-		private static void GenerateSsScripts(DataTable dt, NpgsqlConnection conn) {
-			var schemas = new List<string>();
+		private static void GenerateTableScripts(DataTable dt, NpgsqlConnection conn) {
 			var createPath = Path.Combine(
 				_params[Parameters.OtherWorkPath].ToString(), Constants.CreateTables);
 			var dropPath = Path.Combine(
@@ -96,7 +182,6 @@ namespace ConvertPG2SS {
 
 					// Schema or table changed: close table defenition.
 					if (!savedSchema.Equals(schema) || !savedTable.Equals(table)) {
-						if (!savedSchema.Equals(schema)) schemas.Add(schema);
 						if (!string.IsNullOrEmpty(savedTable)) {
 							CloseCreateTable(swCreate, defaults);
 							defaults.Clear();
@@ -132,7 +217,7 @@ namespace ConvertPG2SS {
 					if (!string.IsNullOrEmpty(def[0])) defaults.Add(def);
 				}
 
-				if (schemas.Count == 0) return;
+				if (string.IsNullOrEmpty(savedSchema)) return;
 
 				// Complete last writes.
 				swCreate.CloseCreateTable(defaults);
@@ -140,8 +225,6 @@ namespace ConvertPG2SS {
 				swCreate.WriteCommitTrans();
 				swDrop.WriteCommitTrans();
 				swTrunc.WriteCommitTrans();
-
-				GenCreateSchemas(schemas);
 			}
 			catch (Exception ex) {
 				_log.WriteEx('E', Constants.LogTsType, ex);
@@ -180,13 +263,12 @@ namespace ConvertPG2SS {
 				aryDim--;
 			}
 
-			// TODO: 2015-09-29: create custom types in SQL Server.
+			// Retrieve data type.
 			var regType = row["regtype"].ToString();
 			var dataType = Postgres.SsDataType(regType);
-			if (string.IsNullOrEmpty(dataType)) {
-			}
+			if (string.IsNullOrEmpty(dataType)) dataType = regType;
 
-
+			// Generate column definition.
 			for (var i = 0; i <= aryDim; i++) {
 				if (aryDim > 0) ext = (i + 1).ToString(fmt);
 				if (i > 0) tw.WriteLine(",");
@@ -202,8 +284,10 @@ namespace ConvertPG2SS {
 						tmpDef[0] = row["schema_name"].ToString();
 						tmpDef[1] = row["table_name"].ToString();
 						tmpDef[2] = row["column_name"] + ext;
-						if (row["default_val"] != DBNull.Value) tmpDef[3] = row["default_val"].ToString();
-						if (row["comment"] != DBNull.Value) tmpDef[4] = row["comment"].ToString();
+						if (row["default_val"] != DBNull.Value)
+							tmpDef[3] = row["default_val"].ToString();
+						if (row["comment"] != DBNull.Value)
+							tmpDef[4] = row["comment"].ToString();
 					}
 				}
 
@@ -370,25 +454,6 @@ namespace ConvertPG2SS {
 				tw.WriteLine(def[2] + "'");
 				tw.WriteLine("GO");
 				tw.WriteLine();
-			}
-		}
-
-		/// <summary>
-		///     Write the CREATE SCHEMA statements.
-		/// </summary>
-		/// <param name="schemas"></param>
-		private static void GenCreateSchemas(IEnumerable<string> schemas) {
-			var path = Path.Combine(
-				_params[Parameters.OtherWorkPath].ToString(), Constants.CreateSchemas);
-
-			using (var sw = new StreamWriter(path, false, Encoding.Default)) {
-				sw.WriteUseDb();
-
-				foreach (var schema in schemas) {
-					sw.WriteLine("CREATE SCHEMA ]" + schema + "];");
-					sw.WriteLine("GO");
-					sw.WriteLine();
-				}
 			}
 		}
 

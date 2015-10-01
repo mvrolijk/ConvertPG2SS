@@ -63,7 +63,7 @@ namespace ConvertPG2SS.Helpers {
 				return -1;
 			}
 			finally {
-				if (cmd != null) cmd.Dispose();
+				cmd?.Dispose();
 			}
 		}
 
@@ -105,7 +105,7 @@ namespace ConvertPG2SS.Helpers {
 				Log.WriteEx('E', Constants.LogTsType, ex);
 			}
 			finally {
-				if (cmd != null) cmd.Dispose();
+				cmd?.Dispose();
 			}
 			return -1;
 		}
@@ -156,7 +156,7 @@ namespace ConvertPG2SS.Helpers {
 				return new object();
 			}
 			finally {
-				if (cmd != null) cmd.Dispose();
+				cmd?.Dispose();
 			}
 		}
 
@@ -192,9 +192,7 @@ namespace ConvertPG2SS.Helpers {
 		/// <param name="log"></param>
 		/// <returns></returns>
 		internal static bool CheckConnection(NpgsqlConnection conn, IBLogger log) {
-			if (conn == null) return false;
-
-			if (conn.State != ConnectionState.Open) return false;
+			if (conn?.State != ConnectionState.Open) return false;
 
 			// Try a simple command to confirm that the SQL connection is
 			// indeed working.
@@ -267,6 +265,7 @@ namespace ConvertPG2SS.Helpers {
 				case "xml":
 					return "xml";
 				default:
+					// TODO: 2015-10-01: possible lookup from custom type table here.
 					return "";
 			}
 		}
