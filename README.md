@@ -10,7 +10,7 @@ It's in a pre-alpha stage, so *caveat emptor*.
 
 ## Features
 
-* The program uses an INI file to store its configuration.
+* The program uses an **INI** file to store its configuration.
 * The program creates various scripts that you can exceute in SSMS or command line:
   - **00_create_schemas.sql**: creates the schemas.
   - **01_create_types.sql**: create custom types.
@@ -33,7 +33,7 @@ It's in a pre-alpha stage, so *caveat emptor*.
 
 ## TODO:
 
-* Unique and foreing
+* Foreign keys
 * More complex column constraints (like CHECK)
 * Views
 * Triggers
@@ -43,4 +43,3 @@ It's in a pre-alpha stage, so *caveat emptor*.
 * The plan is to eventually include SS-to-PG code also.
 * Unit testing
 * Better character set / encoding support
-* Domains
