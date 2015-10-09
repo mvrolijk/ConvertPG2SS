@@ -168,7 +168,8 @@ namespace ConvertPG2SS {
 				"schema_name = '{0}' AND table_name = '{1}'",
 				schema, table);
 
-			var dt = (DataTable) _params[Constants.PgSchemaTable];
+			var tblDict = ((Dictionary<string, DataTable>)_params[Constants.PgTables]);
+			var dt = tblDict[Constants.PgSchemaTable];
 			NpgsqlCommand cmd = null;
 			NpgsqlDataReader reader = null;
 			var colInfo = dt.Select(criteria, "column_index");
