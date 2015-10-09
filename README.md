@@ -34,12 +34,13 @@ It's in a pre-alpha stage, so *caveat emptor*.
 ## TODO:
 
 * Foreign keys
+* Sequences
 * More complex column constraints (like CHECK)
-* Views
-* Triggers
 
 ## Wish List
 
 * The plan is to eventually include SS-to-PG code also.
 * Unit testing
 * Better character set / encoding support
+* Views
+* Triggers
