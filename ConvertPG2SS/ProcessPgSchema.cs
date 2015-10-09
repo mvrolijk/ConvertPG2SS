@@ -41,6 +41,14 @@ namespace ConvertPG2SS {
 		private static IBLogger _log;
 		private static IParameters _params;
 
+		// Column info array index
+		private static int SchemaName   = 0;
+		private static int TableName    = 1;
+		private static int ColumnName   = 2;
+		private static int DataType     = 3;
+		private static int DefaultValue = 4;
+		private static int Comment      = 5;
+
 		/// <summary>
 		///     Generate the scripts.
 		/// </summary>
@@ -214,7 +222,7 @@ namespace ConvertPG2SS {
 							conn);
 					}
 					swCreate.GenerateColumn(row, dim, out def);
-					if (!string.IsNullOrEmpty(def[0])) defaults.Add(def);
+					if (!string.IsNullOrEmpty(def[SchemaName])) defaults.Add(def);
 				}
 
 				if (string.IsNullOrEmpty(savedSchema)) return;
@@ -281,14 +289,14 @@ namespace ConvertPG2SS {
 				if (i == 0) {
 					// Store information to generate default and comment definitions later.
 					if (row["default_val"] != DBNull.Value || row["comment"] != DBNull.Value) {
-						tmpDef[0] = row["schema_name"].ToString();
-						tmpDef[1] = row["table_name"].ToString();
-						tmpDef[2] = row["column_name"] + ext;
-						tmpDef[3] = dataType;
+						tmpDef[SchemaName] = row["schema_name"].ToString();
+						tmpDef[TableName] = row["table_name"].ToString();
+						tmpDef[ColumnName] = row["column_name"] + ext;
+						tmpDef[DataType] = dataType;
 						if (row["default_val"] != DBNull.Value)
-							tmpDef[4] = row["default_val"].ToString();
+							tmpDef[DefaultValue] = row["default_val"].ToString();
 						if (row["comment"] != DBNull.Value)
-							tmpDef[5] = row["comment"].ToString();
+							tmpDef[Comment] = row["comment"].ToString();
 					}
 				}
 
@@ -422,9 +430,9 @@ namespace ConvertPG2SS {
 			var first = true;
 
 			foreach (var def in defaults) {
-				if (string.IsNullOrEmpty(def[4])) continue;
+				if (string.IsNullOrEmpty(def[DefaultValue])) continue;
 
-				var defVal = Postgres.SsDefaultValue(def[4]);
+				var defVal = Postgres.SsDefaultValue(def[DefaultValue]);
 				if (string.IsNullOrEmpty(defVal)) continue;
 
 				if (first) {
@@ -434,10 +442,10 @@ namespace ConvertPG2SS {
 					first = false;
 				}
 
-				tw.Write("ALTER TABLE [" + def[0] + "].[");
-				tw.Write(def[1] + "] ADD CONSTRAINT DF_");
-				tw.Write(def[1] + "_" + def[2] + " DEFAULT ");
-				tw.WriteLine("(" + defVal + ") FOR [" + def[2] + "]");
+				tw.Write("ALTER TABLE [" + def[SchemaName] + "].[");
+				tw.Write(def[TableName] + "] ADD CONSTRAINT DF_");
+				tw.Write(def[TableName] + "_" + def[ColumnName] + " DEFAULT ");
+				tw.WriteLine("(" + defVal + ") FOR [" + def[ColumnName] + "]");
 				tw.WriteLine("GO");
 				tw.WriteLine();
 			}
@@ -452,15 +460,15 @@ namespace ConvertPG2SS {
 			this TextWriter tw,
 			IEnumerable<string[]> defaults) 
 		{
-			foreach (var def in defaults.Where(def => !string.IsNullOrEmpty(def[5]))) {
+			foreach (var def in defaults.Where(def => !string.IsNullOrEmpty(def[Comment]))) {
 				tw.Write("EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'");
-				tw.WriteLine(General.SanitizeString(def[5]) + "' ,");
+				tw.WriteLine(General.SanitizeString(def[Comment]) + "' ,");
 				tw.Write("@level0type=N'SCHEMA',@level0name=N'");
-				tw.WriteLine(def[0] + "' ,");
+				tw.WriteLine(def[SchemaName] + "' ,");
 				tw.Write("@level1type=N'TABLE',@level1name=N'");
-				tw.WriteLine(def[1] + "' ,");
+				tw.WriteLine(def[TableName] + "' ,");
 				tw.Write("@level2type=N'COLUMN',@level2name=N'");
-				tw.WriteLine(def[2] + "'");
+				tw.WriteLine(def[ColumnName] + "'");
 				tw.WriteLine("GO");
 				tw.WriteLine();
 			}
