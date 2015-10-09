@@ -26,7 +26,9 @@
 //----------------------------------------------------------------------------------------
 
 using System;
+using System.Data;
 using System.IO;
+using System.Text;
 using ConvertPG2SS.Common;
 using ConvertPG2SS.Interfaces;
 
@@ -60,6 +62,42 @@ namespace ConvertPG2SS.Helpers {
 			}
 
 			return true;
+		}
+
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="str"></param>
+		/// <returns></returns>
+		internal static string SanitizeString(string str) {
+			if (string.IsNullOrEmpty(str)) return str;
+
+			var sb = new StringBuilder();
+
+			for (var i = 0; i < str.Length; i++) {
+				var ch = str[i];
+
+				if (ch == '\'') {
+					var ch2 = i < str.Length - 1 ? str[i + 1] : ' ';
+					if (ch2 != '\'') sb.Append("\'\'");
+					continue;
+				}
+				sb.Append(ch);
+			}
+
+			return sb.ToString();
+		}
+
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="ba"></param>
+		/// <returns></returns>
+		internal static string ConvertBinToText(byte[] ba) {
+			var tempStr = new StringBuilder(ba.Length * 2 + 2);
+			//tempStr.Append("0x");
+			foreach (var b in ba) tempStr.AppendFormat("{0:X2}", b);
+			return tempStr.ToString();
 		}
 	}
 }

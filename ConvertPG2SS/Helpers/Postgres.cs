@@ -295,10 +295,10 @@ namespace ConvertPG2SS.Helpers {
 		/// <param name="def"></param>
 		/// <returns></returns>
 		internal static string SsDefaultValue(string def) {
-			var p = def.IndexOf("::", StringComparison.Ordinal);
 			string typ;
 			string val;
 
+			var p = def.IndexOf("::", StringComparison.Ordinal);
 			if (p > 0) {
 				typ = def.Substring(p + 2);
 				val = def.Substring(0, p);
@@ -313,6 +313,10 @@ namespace ConvertPG2SS.Helpers {
 					switch (val) {
 						case "now()":
 							return "GETDATE()";
+						case "false":
+							return "0";
+						case "true":
+							return "1";
 						default:
 							return val;
 					}

@@ -252,7 +252,7 @@ namespace ConvertPG2SS {
 			var sb = new StringBuilder();
 			var fmt = "";
 			var ext = "";
-			var tmpDef = new string[5];
+			var tmpDef = new string[6];
 			var aryDim = dim;
 
 			if (aryDim <= 1) aryDim = 0;
@@ -284,10 +284,11 @@ namespace ConvertPG2SS {
 						tmpDef[0] = row["schema_name"].ToString();
 						tmpDef[1] = row["table_name"].ToString();
 						tmpDef[2] = row["column_name"] + ext;
+						tmpDef[3] = dataType;
 						if (row["default_val"] != DBNull.Value)
-							tmpDef[3] = row["default_val"].ToString();
+							tmpDef[4] = row["default_val"].ToString();
 						if (row["comment"] != DBNull.Value)
-							tmpDef[4] = row["comment"].ToString();
+							tmpDef[5] = row["comment"].ToString();
 					}
 				}
 
@@ -307,19 +308,27 @@ namespace ConvertPG2SS {
 		private static string GenerateColumnDimDef(DataRow row, string dataType) {
 			var sb = new StringBuilder();
 
-			// Text field has a size.
-			if (row["max_char_size"] != DBNull.Value) {
-				sb.Append("(");
-				sb.Append(((int)row["max_char_size"]).ToString().Trim());
-				sb.Append(")");
-			}
-			// Number field has precision and scale.
-			else if (row["numeric_precision"] != DBNull.Value) {
+			if (row["numeric_precision"] != DBNull.Value) {
+				// Number field has precision and scale.
 				if (dataType == "numeric" || dataType == "dec" || dataType == "decimal") {
-					sb.Append("(" + ((int)row["numeric_precision"]).ToString().Trim());
-					var scale = (int)row["numeric_scale"];
+					sb.Append("(" + ((int) row["numeric_precision"]).ToString().Trim());
+					var scale = (int) row["numeric_scale"];
 					if (scale > 0) sb.Append("," + scale);
 					sb.Append(")");
+				}
+			}
+			else {
+				// Text field has a size.
+				if (row["max_char_size"] != DBNull.Value) {
+					var charSize = (int) row["max_char_size"];
+					if (charSize > 0) {
+						sb.Append("(");
+						sb.Append(((int)row["max_char_size"]).ToString().Trim());
+						sb.Append(")");
+					}
+					else {
+						sb.Append("(max)");
+					}
 				}
 			}
 
@@ -413,9 +422,9 @@ namespace ConvertPG2SS {
 			var first = true;
 
 			foreach (var def in defaults) {
-				if (string.IsNullOrEmpty(def[3])) continue;
+				if (string.IsNullOrEmpty(def[4])) continue;
 
-				var defVal = Postgres.SsDefaultValue(def[3]);
+				var defVal = Postgres.SsDefaultValue(def[4]);
 				if (string.IsNullOrEmpty(defVal)) continue;
 
 				if (first) {
@@ -443,9 +452,9 @@ namespace ConvertPG2SS {
 			this TextWriter tw,
 			IEnumerable<string[]> defaults) 
 		{
-			foreach (var def in defaults.Where(def => !string.IsNullOrEmpty(def[4]))) {
+			foreach (var def in defaults.Where(def => !string.IsNullOrEmpty(def[5]))) {
 				tw.Write("EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'");
-				tw.WriteLine(def[4] + "' ,");
+				tw.WriteLine(General.SanitizeString(def[5]) + "' ,");
 				tw.Write("@level0type=N'SCHEMA',@level0name=N'");
 				tw.WriteLine(def[0] + "' ,");
 				tw.Write("@level1type=N'TABLE',@level1name=N'");
@@ -480,7 +489,7 @@ namespace ConvertPG2SS {
 
 						tw.Write(
 							"EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'");
-						tw.WriteLine(comment + "' ,");
+						tw.WriteLine(General.SanitizeString(comment) + "' ,");
 						tw.Write("@level0type=N'SCHEMA',@level0name=N'");
 						tw.WriteLine(reader["schema_name"] + "' ,");
 						tw.Write("@level1type=N'TABLE',@level1name=N'");

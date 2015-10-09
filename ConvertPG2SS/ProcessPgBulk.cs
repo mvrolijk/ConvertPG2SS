@@ -33,6 +33,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using ConvertPG2SS.Common;
+using ConvertPG2SS.Helpers;
 using ConvertPG2SS.Interfaces;
 using Npgsql;
 
@@ -228,7 +229,7 @@ namespace ConvertPG2SS {
 
 				if (i > 0) sb.Append(Constants.Tab);
 				var valueType = reader[i].GetType();
-				if (valueType.IsArray) {
+				if (valueType.IsArray && valueType.Name != "Byte[]") {
 					var enumerable = reader[i] as IEnumerable;
 					if (enumerable == null) {
 						sb.Append(FormatColumnVal(reader[i], column));
@@ -264,6 +265,10 @@ namespace ConvertPG2SS {
 				case "timestamp without time zone[]":
 				case "timestamp with time zone[]":
 					return ((DateTime)obj).ToString(Constants.TimeStamp);
+				case "boolean":
+					return (bool) obj ? "1" : "0";
+				case "bytea":
+					return General.ConvertBinToText((byte[])obj);
 				default:
 					return obj.ToString();
 			}

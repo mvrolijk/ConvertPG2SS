@@ -70,7 +70,7 @@ namespace ConvertPG2SS.Helpers {
 					WHEN a.atttypid = ANY (ARRAY[1042::oid, 1043::oid, 1015::oid]) THEN
 						CASE 
 							WHEN a.atttypmod > 0 THEN a.atttypmod - 4
-							ELSE NULL::integer
+							ELSE -1
 						END
 				END AS max_char_size,
 				CASE a.atttypid
