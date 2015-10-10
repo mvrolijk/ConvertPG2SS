@@ -28,6 +28,8 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Globalization;
+using System.Linq;
+using System.Text;
 using ConvertPG2SS.Common;
 using ConvertPG2SS.Interfaces;
 using Npgsql;
@@ -36,6 +38,9 @@ namespace ConvertPG2SS.Helpers {
 	static class PostgresSchemaTables {
 		private static IBLogger _log;
 		private static IParameters _params;
+		private static NpgsqlConnection _pgConn;
+
+		private const string DimPostfix = "_dim";
 
 		/// <summary>
 		/// 
@@ -43,17 +48,16 @@ namespace ConvertPG2SS.Helpers {
 		internal static void CreateTables() {
 			_log = Program.GetInstance<IBLogger>();
 			_params = Program.GetInstance<IParameters>();
+			_pgConn = (NpgsqlConnection) _params[Constants.PgConnection];
 
-			var pgConn = (NpgsqlConnection) _params[Constants.PgConnection];
-			CreateSchemaTable(pgConn);
-			CreateTypeTable(pgConn);
+			CreateSchemaTable();
+			CreateTypeTable();
 		}
 
 		/// <summary>
 		/// 
 		/// </summary>
-		/// <param name="conn"></param>
-		private static void CreateSchemaTable(NpgsqlConnection conn) {
+		private static void CreateSchemaTable() {
 			#region PostgreSQL query to retrieve coloumn information from pg_catalog.
 			var inclPublic = bool.Parse(_params[Parameters.PostgresIncludePublic].ToString());
 			var inList = "'pg_catalog', 'information_schema'";
@@ -114,10 +118,13 @@ namespace ConvertPG2SS.Helpers {
 			NpgsqlDataAdapter da = null;
 
 			try {
-				da = new NpgsqlDataAdapter(sql, conn);
+				da = new NpgsqlDataAdapter(sql, _pgConn);
 				da.Fill(dt);
 
 				if (dt.Rows.Count == 0) return;
+
+				// Add a dim size coloumn.
+				dt.Columns.Add("dim_size", typeof(int));
 
 				// Add primary key to table.
 				var columns = new DataColumn[3];
@@ -132,13 +139,114 @@ namespace ConvertPG2SS.Helpers {
 			finally {
 				da?.Dispose();
 			}
+
+			ProcessDimensions(dt);
+		}
+
+		/// <summary>
+		///     Process all the tables that have bytea or array columns.
+		/// </summary>
+		/// <param name="dt"></param>
+		private static void ProcessDimensions(DataTable dt) {
+			var dts = dt.Select("dims <> 0 OR regtype = 'bytea'");
+
+			// Select all the tables that have at least one dimensioned column. 
+			var tables = dts
+				.Select(m => new {
+					sn = m.Field<string>("schema_name"), tb = m.Field<string>("table_name")
+				}).Distinct();
+
+			foreach (var dimRows in tables.Select(table => string.Format(
+				CultureInfo.InvariantCulture,
+				"schema_name = '{0}' AND table_name = '{1}' AND " +
+				"(dims <> 0 OR regtype = 'bytea')",
+				table.sn, table.tb)).Select(dt.Select)) {
+				ProcessDimRows(dimRows);
+			}
+		}
+
+		/// <summary>
+		///     Procces the bytea or array columns.
+		/// </summary>
+		/// <param name="dr"></param>
+		private static void ProcessDimRows(DataRow[] dr) {
+			var sql = BuildCommand(dr);
+
+			var dt = new DataTable();
+			NpgsqlDataAdapter da = null;
+
+			try {
+				da = new NpgsqlDataAdapter(sql, _pgConn);
+				da.Fill(dt);
+
+				if (dt.Rows.Count == 0) return;
+
+				var dimRow = dt.Rows[0];
+
+				foreach (var row in dr) {
+					var rowName = row["column_name"] + DimPostfix;
+					if (row["regtype"].ToString() != "bytea")
+						row["dim_size"] = dimRow[rowName];
+					else row["max_char_size"] = dimRow[rowName];
+				}
+			}
+			catch (NpgsqlException ex) {
+				_log.WriteEx('E', Constants.LogTsType, ex);
+			}
+			finally {
+				dt.Dispose();
+				da?.Dispose();
+			}
+
+		}
+
+		/// <summary>
+		///     Build the SQL SELECT statement to determine maximum array dimensions and
+		///     bytea maximum size.
+		/// </summary>
+		/// <param name="dr"></param>
+		/// <returns></returns>
+		private static string BuildCommand(IEnumerable<DataRow> dr) {
+			var sb = new StringBuilder();
+			var first = true;
+			var table = "";
+			var lim = int.Parse(_params[Parameters.PostgresArrayLimit].ToString());
+
+			sb.Append("SELECT ");
+
+			// TODO: 2015-10-10: what if you have a bytea array?
+			foreach (var row in dr) {
+				if (first) {
+					table = row["schema_name"] + "." + row["table_name"];
+					first = false;
+				}
+				else sb.Append(", ");
+
+				sb.Append(row["regtype"].ToString() == "bytea"
+					? "max(length("
+					: "max(cardinality(");
+				if (lim > 0) sb.Append("t.");
+				sb.Append(row["column_name"] + "))");
+				sb.Append(" AS " + row["column_name"] + DimPostfix);
+			}
+
+			sb.Append(" FROM ");
+
+			if (lim > 0) {
+				sb.Append("( SELECT * FROM " + table + " LIMIT " + lim);
+				sb.Append(") t");
+			}
+			else {
+				sb.Append(table);
+			}
+
+			return sb.ToString();
 		}
 
 		/// <summary>
 		/// 
 		/// </summary>
-		/// <param name="conn"></param>
-		private static void CreateTypeTable(NpgsqlConnection conn) {
+		private static void CreateTypeTable() {
 			#region PostgreSQL query to retrieve type/domain information from pg_catalog.
 			const string sql =
 				@"SELECT n.nspname as schema_name, format_type(t.oid, NULL) AS type_name,
@@ -191,7 +299,7 @@ namespace ConvertPG2SS.Helpers {
 			NpgsqlDataAdapter da = null;
 
 			try {
-				da = new NpgsqlDataAdapter(sql, conn);
+				da = new NpgsqlDataAdapter(sql, _pgConn);
 				da.Fill(dt);
 
 				if (dt.Rows.Count == 0) return;

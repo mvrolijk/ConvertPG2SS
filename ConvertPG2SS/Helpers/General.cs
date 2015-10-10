@@ -93,7 +93,7 @@ namespace ConvertPG2SS.Helpers {
 		/// </summary>
 		/// <param name="ba"></param>
 		/// <returns></returns>
-		internal static string ConvertBinToText(byte[] ba) {
+		internal static string ConvertBinToHex(byte[] ba) {
 			var tempStr = new StringBuilder(ba.Length * 2 + 2);
 			//tempStr.Append("0x");
 			foreach (var b in ba) tempStr.AppendFormat("{0:X2}", b);

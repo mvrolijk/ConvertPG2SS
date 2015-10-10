@@ -45,50 +45,48 @@ namespace ConvertPG2SS {
 		internal static void Do() {
 			_log = Program.GetInstance<IBLogger>();
 			_params = Program.GetInstance<IParameters>();
-
 			var frmConn = (NpgsqlConnection)_params[Constants.PgConnection];
 
-			CreateBulkFile(frmConn);
+			var tblDict = ((Dictionary<string, DataTable>)_params[Constants.PgTables]);
+
+			var dt = tblDict[Constants.PgSchemaTable];
+
+			var view = new DataView(dt);
+			var tables = view.ToTable(true, "schema_name", "table_name");
+
+
+			CreateBulkFile(tables);
 			if (!bool.Parse(_params[Parameters.PostgresProcessBulk].ToString())) return;
 
-			CreateImportFiles(frmConn);
-
+			CreateImportFiles(tables, frmConn);
 		}
 
 		/// <summary>
 		/// 
 		/// </summary>
-		/// <param name="conn"></param>
-		private static void CreateBulkFile(NpgsqlConnection conn) {
-			const string sql =
-				@"SELECT schema_name, table_name
-				FROM	 public.tables
-				ORDER BY schema_name, table_name";
-
+		/// <param name="tables"></param>
+		private static void CreateBulkFile(DataTable tables) {
 			var path = Path.Combine(
 				_params[Parameters.OtherWorkPath].ToString(), Constants.CreateBulkCopy);
 
-			using (var sw = new StreamWriter(path, false, Encoding.Default)) 
-			using (var cmd = new NpgsqlCommand(sql, conn)) {
+			using (var sw = new StreamWriter(path, false, Encoding.Default)) {
 				sw.WriteLine("USE " + _params[Parameters.MsSqlDatabase] + ";");
 				sw.WriteLine("GO");
 				sw.WriteLine();
 				sw.WriteLine("BEGIN TRANSACTION;");
 				sw.WriteLine();
 
-				using (var reader = cmd.ExecuteReader()) {
-					while (reader.Read()) {
-						var schema = reader["schema_name"].ToString();
-						var table = reader["table_name"].ToString();
+				foreach (DataRow row in tables.Rows) {
+					var schema = row["schema_name"].ToString();
+					var table = row["table_name"].ToString();
 
-						sw.WriteLine("BULK");
-						sw.WriteLine("INSERT [" + schema + "].[" + table + "]");
+					sw.WriteLine("BULK");
+					sw.WriteLine("INSERT [" + schema + "].[" + table + "]");
 
-						sw.WriteLine("FROM '" + ImportFile(schema, table) + "'");
-						sw.WriteLine("WITH (FIELDTERMINATOR = '\\t', ROWTERMINATOR = '\\n')");
-						sw.WriteLine("GO");
-						sw.WriteLine();
-					}
+					sw.WriteLine("FROM '" + ImportFile(schema, table) + "'");
+					sw.WriteLine("WITH (FIELDTERMINATOR = '\\t', ROWTERMINATOR = '\\n')");
+					sw.WriteLine("GO");
+					sw.WriteLine();
 				}
 				sw.WriteLine("COMMIT TRANSACTION;");
 			}
@@ -97,42 +95,38 @@ namespace ConvertPG2SS {
 		/// <summary>
 		/// 
 		/// </summary>
+		/// <param name="tables"></param>
 		/// <param name="conn"></param>
-		private static void CreateImportFiles(NpgsqlConnection conn) {
-			const string sql =
-				@"SELECT schema_name, table_name
-				FROM	 public.tables
-				ORDER BY schema_name, table_name";
+		private static void CreateImportFiles(
+			DataTable tables, 
+			NpgsqlConnection conn)
+		{
+			if (tables.Rows.Count == 0) return;
 
-			using (var da = new NpgsqlDataAdapter(sql, conn)) {
-				var dt = new DataTable();
-				da.Fill(dt);
-				if (dt.Rows.Count == 0) return;
+			_log.Info("");
+			_log.Write('I', Constants.LogTsType, "Generating import files:");
+			long totalRecCount = 0;
 
-				_log.Info("");
-				_log.Write('I', Constants.LogTsType, "Generating import files:");
-				long totalRecCount = 0;
+			foreach (DataRow row in tables.Rows) {
+				var schema = row["schema_name"].ToString();
+				var table = row["table_name"].ToString();
 
-				foreach (DataRow row in dt.Rows) {
-					var schema = row["schema_name"].ToString();
-					var table = row["table_name"].ToString();
-					using (var sw = new StreamWriter(
-											ImportFile(schema, table), 
-											false, 
-											Encoding.Default)) {
-						totalRecCount += sw.CreateImportFile(schema, table, conn);
-					}
+				using (var sw = new StreamWriter(
+						ImportFile(schema, table),
+						false,
+						Encoding.Default)) {
+					totalRecCount += sw.CreateImportFile(schema, table, conn);
 				}
-				dt.Dispose();
-				_log.Info("");
-				_log.Write(
-					'I', 
-					Constants.LogTsType, 
-					string.Format(
-						CultureInfo.InvariantCulture,
-						"Total records processed: {0,13:n0}",
-						totalRecCount));
 			}
+
+			_log.Info("");
+			_log.Write(
+				'I', 
+				Constants.LogTsType, 
+				string.Format(
+					CultureInfo.InvariantCulture,
+					"Total records processed: {0,13:n0}",
+					totalRecCount));
 		}
 
 		/// <summary>
@@ -268,7 +262,7 @@ namespace ConvertPG2SS {
 				case "boolean":
 					return (bool) obj ? "1" : "0";
 				case "bytea":
-					return General.ConvertBinToText((byte[])obj);
+					return General.ConvertBinToHex((byte[])obj);
 				default:
 					return obj.ToString();
 			}

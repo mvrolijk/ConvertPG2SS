@@ -163,31 +163,6 @@ namespace ConvertPG2SS.Helpers {
 		/// <summary>
 		/// 
 		/// </summary>
-		/// <param name="schema"></param>
-		/// <param name="table"></param>
-		/// <param name="column"></param>
-		/// <param name="conn"></param>
-		/// <returns></returns>
-		internal static int CalcArrayDim(
-			string schema, 
-			string table, 
-			string column, 
-			NpgsqlConnection conn) 
-		{
-			// TODO: 2015-09-29: implement postgres.array_limit. Also, get all columns in one go.
-			var dim = GetScalar(
-				"cardinality(" + column + ")",
-				schema + "." + table,
-				"",
-				conn);
-
-			//return (int) dim;
-			return dim == null || dim == DBNull.Value ? 0 : (int)dim;
-		}
-
-		/// <summary>
-		/// 
-		/// </summary>
 		/// <param name="conn"></param>
 		/// <param name="log"></param>
 		/// <returns></returns>
@@ -326,78 +301,6 @@ namespace ConvertPG2SS.Helpers {
 				default:
 					return null;
 			}
-		}
-
-		/// <summary>
-		/// 
-		/// </summary>
-		/// <param name="conn"></param>
-		internal static void CreateTempAryTables(NpgsqlConnection conn) {
-			var sql =
-				@"DROP TABLE IF EXISTS array_dimensions;
-				CREATE TABLE array_dimensions (
-					schema_name text NOT NULL,
-					table_name text NOT NULL,
-					column_name text NOT NULL,
-					dim integer,
-					CONSTRAINT array_dimensions_pkey 
-						PRIMARY KEY (schema_name, table_name, column_name)
-				)";
-			ExecuteSql(sql, conn);
-
-			sql =
-				@"DROP TABLE IF EXISTS tables;
-				CREATE TABLE tables (
-					schema_name text NOT NULL,
-					table_name text NOT NULL,
-					CONSTRAINT tables_pkey 
-						PRIMARY KEY (schema_name, table_name)
-				)";
-
-			ExecuteSql(sql, conn);
-		}
-
-		/// <summary>
-		/// 
-		/// </summary>
-		/// <param name="schema"></param>
-		/// <param name="table"></param>
-		/// <param name="column"></param>
-		/// <param name="dim"></param>
-		/// <param name="conn"></param>
-		internal static void InsertTempAryTableRec(
-			string schema,
-			string table,
-			string column,
-			int dim,
-			NpgsqlConnection conn) 
-		{
-			var sql = string.Format(
-				CultureInfo.InvariantCulture,
-				"INSERT INTO array_dimensions (" +
-				"schema_name, table_name, column_name, dim) " +
-				"VALUES ('{0}', '{1}', '{2}', {3})",
-				schema, table, column, dim);
-			ExecuteSql(sql, conn);
-		}
-
-		/// <summary>
-		/// 
-		/// </summary>
-		/// <param name="schema"></param>
-		/// <param name="table"></param>
-		/// <param name="conn"></param>
-		internal static void InsertTempTable(
-			string schema,
-			string table,
-			NpgsqlConnection conn) {
-			var sql = string.Format(
-				CultureInfo.InvariantCulture,
-				"INSERT INTO tables (" +
-				"schema_name, table_name) " +
-				"VALUES ('{0}', '{1}')",
-				schema, table);
-			ExecuteSql(sql, conn);
 		}
 	}
 }

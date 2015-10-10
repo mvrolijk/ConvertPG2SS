@@ -42,12 +42,12 @@ namespace ConvertPG2SS {
 		private static IParameters _params;
 
 		// Column info array index
-		private static int SchemaName   = 0;
-		private static int TableName    = 1;
-		private static int ColumnName   = 2;
-		private static int DataType     = 3;
-		private static int DefaultValue = 4;
-		private static int Comment      = 5;
+		private static int SchemaName   => 0;
+		private static int TableName    => 1;
+		private static int ColumnName   => 2;
+		private static int DataType     => 3;
+		private static int DefaultValue => 4;
+		private static int Comment      => 5;
 
 		/// <summary>
 		///     Generate the scripts.
@@ -57,7 +57,6 @@ namespace ConvertPG2SS {
 			_params = Program.GetInstance<IParameters>();
 
 			var frmConn = (NpgsqlConnection) _params[Constants.PgConnection];
-			Postgres.CreateTempAryTables(frmConn);
 			PostgresSchemaTables.CreateTables();
 
 			var tblDict = ((Dictionary<string, DataTable>)_params[Constants.PgTables]);
@@ -196,7 +195,6 @@ namespace ConvertPG2SS {
 						}
 						savedSchema = schema;
 						savedTable = table;
-						Postgres.InsertTempTable(savedSchema, savedTable, conn);
 
 						swCreate.OpenCreateTable(schema, table);
 						swDrop.WriteDropCommand(schema, table);
@@ -206,22 +204,8 @@ namespace ConvertPG2SS {
 
 					// Generate column definition.
 					string[] def;
-					var dim = 0;
 
-					if ((int)row["dims"] > 0) {
-						dim = Postgres.CalcArrayDim(
-							row["schema_name"].ToString(),
-							row["table_name"].ToString(),
-							row["column_name"].ToString(),
-							conn);
-						Postgres.InsertTempAryTableRec(
-							row["schema_name"].ToString(),
-							row["table_name"].ToString(),
-							row["column_name"].ToString(),
-							dim,
-							conn);
-					}
-					swCreate.GenerateColumn(row, dim, out def);
+					swCreate.GenerateColumn(row, out def);
 					if (!string.IsNullOrEmpty(def[SchemaName])) defaults.Add(def);
 				}
 
@@ -254,14 +238,16 @@ namespace ConvertPG2SS {
 		private static void GenerateColumn(
 			this TextWriter tw,
 			DataRow row,
-			int dim,
 			out string[] def) 
 		{
 			var sb = new StringBuilder();
 			var fmt = "";
 			var ext = "";
 			var tmpDef = new string[6];
-			var aryDim = dim;
+			int aryDim;
+
+			if (row["dim_size"] != DBNull.Value) aryDim = (int) row["dim_size"];
+			else aryDim = 0;
 
 			if (aryDim <= 1) aryDim = 0;
 			if (aryDim > 0) {
