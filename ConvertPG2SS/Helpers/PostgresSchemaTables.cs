@@ -35,7 +35,7 @@ using ConvertPG2SS.Interfaces;
 using Npgsql;
 
 namespace ConvertPG2SS.Helpers {
-	static class PostgresSchemaTables {
+	internal static class PostgresSchemaTables {
 		private static IBLogger _log;
 		private static IParameters _params;
 		private static NpgsqlConnection _pgConn;
@@ -52,6 +52,7 @@ namespace ConvertPG2SS.Helpers {
 
 			CreateSchemaTable();
 			CreateTypeTable();
+			CreateSequenceTable();
 		}
 
 		/// <summary>
@@ -59,14 +60,15 @@ namespace ConvertPG2SS.Helpers {
 		/// </summary>
 		private static void CreateSchemaTable() {
 			#region PostgreSQL query to retrieve coloumn information from pg_catalog.
+
 			var inclPublic = bool.Parse(_params[Parameters.PostgresIncludePublic].ToString());
 			var inList = "'pg_catalog', 'information_schema'";
 			if (!inclPublic) inList += ", 'public'";
 
 			var sql =
 				string.Format(
-				CultureInfo.InvariantCulture,
-				@"SELECT n.nspname AS schema_name, c.relname AS table_name,
+					CultureInfo.InvariantCulture,
+					@"SELECT n.nspname AS schema_name, c.relname AS table_name,
 				a.attname AS column_name, a.attnum AS column_index, 
 				(a.atttypid::regtype)::text AS regtype, a.attnotnull AS notnull,
 				format_type(a.atttypid, a.atttypmod) AS data_type, a.attndims AS dims,
@@ -109,7 +111,8 @@ namespace ConvertPG2SS.Helpers {
 					LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
 				WHERE c.relkind = 'r'::""char"" AND n.nspname NOT IN({0})
 				ORDER BY n.nspname ASC, c.relname ASC, a.attnum ASC",
-			  inList);
+					inList);
+
 			#endregion
 
 			var tblDict = ((Dictionary<string, DataTable>) _params[Constants.PgTables]);
@@ -120,18 +123,6 @@ namespace ConvertPG2SS.Helpers {
 			try {
 				da = new NpgsqlDataAdapter(sql, _pgConn);
 				da.Fill(dt);
-
-				if (dt.Rows.Count == 0) return;
-
-				// Add a dim size coloumn.
-				dt.Columns.Add("dim_size", typeof(int));
-
-				// Add primary key to table.
-				var columns = new DataColumn[3];
-				columns[0] = dt.Columns["schema_name"];
-				columns[1] = dt.Columns["table_name"];
-				columns[2] = dt.Columns["column_name"];
-				dt.PrimaryKey = columns;
 			}
 			catch (NpgsqlException ex) {
 				_log.WriteEx('E', Constants.LogTsType, ex);
@@ -139,6 +130,18 @@ namespace ConvertPG2SS.Helpers {
 			finally {
 				da?.Dispose();
 			}
+
+			if (dt.Rows.Count == 0) return;
+
+			// Add a dim size coloumn.
+			dt.Columns.Add("dim_size", typeof(int));
+
+			// Add primary key to table.
+			var columns = new DataColumn[3];
+			columns[0] = dt.Columns["schema_name"];
+			columns[1] = dt.Columns["table_name"];
+			columns[2] = dt.Columns["column_name"];
+			dt.PrimaryKey = columns;
 
 			ProcessDimensions(dt);
 		}
@@ -153,7 +156,8 @@ namespace ConvertPG2SS.Helpers {
 			// Select all the tables that have at least one dimensioned column. 
 			var tables = dts
 				.Select(m => new {
-					sn = m.Field<string>("schema_name"), tb = m.Field<string>("table_name")
+					sn = m.Field<string>("schema_name"),
+					tb = m.Field<string>("table_name")
 				}).Distinct();
 
 			foreach (var dimRows in tables.Select(table => string.Format(
@@ -248,6 +252,7 @@ namespace ConvertPG2SS.Helpers {
 		/// </summary>
 		private static void CreateTypeTable() {
 			#region PostgreSQL query to retrieve type/domain information from pg_catalog.
+
 			const string sql =
 				@"SELECT n.nspname as schema_name, format_type(t.oid, NULL) AS type_name,
 				(typbasetype::regtype)::text AS regtype, typnotnull AS notnull,
@@ -291,9 +296,10 @@ namespace ConvertPG2SS.Helpers {
 									 AND el.typarray = t.oid)
 					  AND pg_type_is_visible(t.oid) 
 					  AND nspname <> 'pg_catalog' AND typbasetype <> 0 ORDER BY 1, 2";
+
 			#endregion
 
-			var tblDict = ((Dictionary<string, DataTable>)_params[Constants.PgTables]);
+			var tblDict = ((Dictionary<string, DataTable>) _params[Constants.PgTables]);
 			var dt = tblDict[Constants.PgTypeTable];
 
 			NpgsqlDataAdapter da = null;
@@ -301,20 +307,107 @@ namespace ConvertPG2SS.Helpers {
 			try {
 				da = new NpgsqlDataAdapter(sql, _pgConn);
 				da.Fill(dt);
-
-				if (dt.Rows.Count == 0) return;
-
-				// Add primary key to table.
-				var columns = new DataColumn[2];
-				columns[0] = dt.Columns["schema_name"];
-				columns[1] = dt.Columns["type_name"];
-				dt.PrimaryKey = columns;
 			}
 			catch (NpgsqlException ex) {
 				_log.WriteEx('E', Constants.LogTsType, ex);
 			}
 			finally {
 				da?.Dispose();
+			}
+			
+			if (dt.Rows.Count == 0) return;
+
+			// Add primary key to table.
+			var columns = new DataColumn[2];
+			columns[0] = dt.Columns["schema_name"];
+			columns[1] = dt.Columns["type_name"];
+			dt.PrimaryKey = columns;
+		}
+
+		/// <summary>
+		/// 
+		/// </summary>
+		private static void CreateSequenceTable() {
+			var inclPublic = bool.Parse(_params[Parameters.PostgresIncludePublic].ToString());
+			var inList = "'pg_catalog', 'information_schema'";
+			if (!inclPublic) inList += ", 'public'";
+
+			var sql =
+				string.Format(
+					CultureInfo.InvariantCulture,
+					@"SELECT n.nspname AS schema_name, c.relname AS seq_name
+					FROM	pg_class c
+						JOIN pg_namespace n ON c.relnamespace = n.oid
+					WHERE	c.relkind = 'S' AND n.nspname NOT IN({0})
+					ORDER	BY n.nspname ASC, c.relname ASC",
+					inList);
+
+			var tblDict = ((Dictionary<string, DataTable>)_params[Constants.PgTables]);
+			var dt = tblDict[Constants.PgSeqTable];
+
+			NpgsqlDataAdapter da = null;
+
+			try {
+				da = new NpgsqlDataAdapter(sql, _pgConn);
+				da.Fill(dt);
+			}
+			catch (NpgsqlException ex) {
+				_log.WriteEx('E', Constants.LogTsType, ex);
+			}
+			finally {
+				da?.Dispose();
+			}
+
+			if (dt.Rows.Count == 0) return;
+
+			// Add sequence specification columns.
+			dt.Columns.Add("last_value", typeof(long));
+			dt.Columns.Add("start_value", typeof(long));
+			dt.Columns.Add("increment_by", typeof(long));
+			dt.Columns.Add("max_value", typeof(long));
+			dt.Columns.Add("min_value", typeof(long));
+			dt.Columns.Add("cache_value", typeof(long));
+			dt.Columns.Add("log_cnt", typeof(long));
+			dt.Columns.Add("is_cycled", typeof(bool));
+			dt.Columns.Add("is_called", typeof(bool));
+
+			// Add primary key to table.
+			var columns = new DataColumn[2];
+			columns[0] = dt.Columns["schema_name"];
+			columns[1] = dt.Columns["seq_name"];
+			dt.PrimaryKey = columns;
+
+			ReadSequenceDetails(dt);
+		}
+
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="dt"></param>
+		private static void ReadSequenceDetails(DataTable dt) {
+			foreach (DataRow row in dt.Rows) {
+				var sql = string.Format(
+					CultureInfo.InvariantCulture,
+					"SELECT * FROM {0}.{1}",
+					row["schema_name"], row["seq_name"]);
+
+				var dtSeq = new DataTable();
+				using (var da = new NpgsqlDataAdapter(sql, _pgConn)) {
+					da.Fill(dtSeq);
+					if (dtSeq.Rows.Count == 0) continue;
+
+					row["last_value"] = dtSeq.Rows[0]["last_value"];
+					row["start_value"] = dtSeq.Rows[0]["start_value"];
+					row["increment_by"] = dtSeq.Rows[0]["increment_by"];
+					row["max_value"] = dtSeq.Rows[0]["max_value"];
+					row["min_value"] = dtSeq.Rows[0]["min_value"];
+					row["cache_value"] = dtSeq.Rows[0]["cache_value"];
+					row["log_cnt"] = dtSeq.Rows[0]["log_cnt"];
+					row["is_cycled"] = dtSeq.Rows[0]["is_cycled"];
+					row["is_called"] = dtSeq.Rows[0]["is_called"];
+
+					dtSeq.Dispose();
+				}
 			}
 		}
 	}

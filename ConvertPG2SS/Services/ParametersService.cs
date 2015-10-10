@@ -83,7 +83,8 @@ namespace ConvertPG2SS.Services {
 			// Add tables.
 			var tblDict = new Dictionary<string, DataTable> {
 				{Constants.PgSchemaTable, new DataTable(Constants.PgSchemaTable)},
-				{Constants.PgTypeTable, new DataTable(Constants.PgTypeTable)}
+				{Constants.PgTypeTable, new DataTable(Constants.PgTypeTable)},
+				{Constants.PgSeqTable, new DataTable(Constants.PgSeqTable)}
 			};
 			_param.Add(Constants.PgTables,tblDict);
 		}
