@@ -240,7 +240,6 @@ namespace ConvertPG2SS.Helpers {
 				case "xml":
 					return "xml";
 				default:
-					// TODO: 2015-10-01: possible lookup from custom type table here.
 					return "";
 			}
 		}
@@ -265,15 +264,23 @@ namespace ConvertPG2SS.Helpers {
 		}
 
 		/// <summary>
-		/// 
+		///     Convert a Postgres default value to SQL Server.
 		/// </summary>
+		/// <param name="schema"></param>
 		/// <param name="def"></param>
 		/// <returns></returns>
-		internal static string SsDefaultValue(string def) {
+		internal static string SsDefaultValue(string schema, string def) {
 			string typ;
 			string val;
+			int p;
 
-			var p = def.IndexOf("::", StringComparison.Ordinal);
+			// Check for sequence.
+			p = def.IndexOf("(", StringComparison.Ordinal);
+			if (p > 0 && def.Substring(0, p).Equals("nextval")) {
+				return Sequence(schema, def.Substring(p));
+			}
+
+			p = def.IndexOf("::", StringComparison.Ordinal);
 			if (p > 0) {
 				typ = def.Substring(p + 2);
 				val = def.Substring(0, p);
@@ -301,6 +308,30 @@ namespace ConvertPG2SS.Helpers {
 				default:
 					return null;
 			}
+		}
+
+		/// <summary>
+		///     Return a sequence default string.
+		/// </summary>
+		/// <param name="schema"></param>
+		/// <param name="def"></param>
+		/// <returns></returns>
+		private static string Sequence(string schema, string def) {
+			var b = def.IndexOf("'", StringComparison.Ordinal);
+			var e = def.IndexOf("'", b + 1, StringComparison.Ordinal);
+			var seq = def.Substring(b + 1, e - b - 1);
+			return "NEXT VALUE FOR [" + schema + "].[" + seq + "]";
+		}
+
+		/// <summary>
+		///     Return a SS data type based on a maximum value.
+		/// </summary>
+		/// <param name="maxVal">Maximun value</param>
+		/// <returns>SS data type</returns>
+		internal static string GetTypeByMaxVal(long maxVal) {
+			if (maxVal <= 255) return "tinyint";
+			if (maxVal <= short.MaxValue) return "smallint";
+			return maxVal <= int.MaxValue ? "int" : "bigint";
 		}
 	}
 }

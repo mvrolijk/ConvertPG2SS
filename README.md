@@ -13,7 +13,7 @@ It's in a pre-alpha stage, so *caveat emptor*.
 * The program uses an **INI** file to store its configuration.
 * The program creates various scripts that you can exceute in SSMS or command line:
   - **00_create_schemas.sql**: creates the schemas.
-  - **01_create_types.sql**: create custom types.
+  - **01_create_types_&_sequences.sql**: create custom types & sequences.
   - **02_create_tables.sql**: creates the tables, including DEFAULT constraints and
   table and columns comments/remarks/descriptions. The program also expands
   array columns by appending a sequence number to the original column name.
@@ -24,7 +24,7 @@ It's in a pre-alpha stage, so *caveat emptor*.
   - **50_truncate_tables.sql**: truncate all the tables, in  case you need to redo
   the bulk copy.
   - **51_drop_tables.sql**: drop all the tables.
-  - **52_drop_types.sql**: drop all the custom types.
+  - **52_drop_types_&_sequences.sql**: drop all the custom types & sequences.
 
 * Bulk import files:
   - TSV format (Tab Separated Values)
@@ -34,7 +34,6 @@ It's in a pre-alpha stage, so *caveat emptor*.
 ## TODO:
 
 * Foreign keys
-* Sequences
 * More complex column constraints (like CHECK)
 
 ## Wish List

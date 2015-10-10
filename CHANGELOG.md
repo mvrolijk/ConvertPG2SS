@@ -2,6 +2,15 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.0.8] - 2015-10-10
+### Added
+- Sequences
+
+### Changed
+- Eliminated the need for temp tables.
+- Fixed varchar(max) and binary type bugs.
+- Got rid of some magic values.
+
 ## [0.0.7] - 2015-09-30
 ### Added
 - Custom types.

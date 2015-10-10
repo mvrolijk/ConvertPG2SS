@@ -70,7 +70,9 @@ namespace ConvertPG2SS {
 			GenerateSchemaScript(schemaTable);
 
 			var typeTable = tblDict[Constants.PgTypeTable];
-			if (typeTable.Rows.Count > 0) GenerateTypeScripts(typeTable);
+			var seqTable = tblDict[Constants.PgSeqTable];
+			if (typeTable.Rows.Count > 0 || seqTable.Rows.Count > 0)
+				GenerateTypeScripts(typeTable, seqTable);
 
 			GenerateTableScripts(schemaTable, frmConn);
 			GenerateBuildIndexes(frmConn);
@@ -104,8 +106,9 @@ namespace ConvertPG2SS {
 		/// <summary>
 		///     Generate the CREATE TYPE and DROP TYPE statements.
 		/// </summary>
-		/// <param name="dt"></param>
-		private static void GenerateTypeScripts(DataTable dt) {
+		/// <param name="dtTypes"></param>
+		/// <param name="dtSeq"></param>
+		private static void GenerateTypeScripts(DataTable dtTypes, DataTable dtSeq) {
 			var createPath = Path.Combine(
 				_params[Parameters.OtherWorkPath].ToString(), Constants.CreateTypes);
 			var dropPath = Path.Combine(
@@ -121,10 +124,12 @@ namespace ConvertPG2SS {
 				swCreate.WriteBeginTrans();
 				swDrop.WriteBeginTrans();
 
-				foreach (DataRow row in dt.Rows) {
+				// TODO: 2015-10-10: fix varchar bug -> shuold become varchar(max).
+				// Write CREATE TYPE statements.
+				foreach (DataRow row in dtTypes.Rows) {
 					var schema = row["schema_name"].ToString().Equals(Constants.PgDefaultSchema) 
 						? Constants.SsDefaultSchema 
-						: row["schmea_name"].ToString();
+						: row["schema_name"].ToString();
 
 					var typeName = "[" + schema + "].[" + row["type_name"] + "]";
 
@@ -137,6 +142,37 @@ namespace ConvertPG2SS {
 					swCreate.WriteLine();
 
 					swDrop.WriteLine("DROP TYPE " + typeName + ";");
+				}
+
+				// Write CREATE SEQUENCE statements.
+				foreach (DataRow row in dtSeq.Rows) {
+					var schema = row["schema_name"].ToString().Equals(Constants.PgDefaultSchema)
+						? Constants.SsDefaultSchema
+						: row["schema_name"].ToString();
+					var seqName = "[" + schema + "].[" + row["seq_name"] + "]";
+
+					swCreate.WriteLine("CREATE SEQUENCE " + seqName);
+					swCreate.Write(Constants.Tab + "AS [");
+					swCreate.WriteLine(Postgres.GetTypeByMaxVal((long) row["max_value"]) + "]");
+					swCreate.Write(Constants.Tab + "START WITH ");
+					swCreate.WriteLine(row["start_value"]);
+					swCreate.Write(Constants.Tab + "INCREMENT BY ");
+					swCreate.WriteLine(row["increment_by"]);
+					swCreate.Write(Constants.Tab + "MINVALUE ");
+					swCreate.WriteLine(row["min_value"]);
+					swCreate.Write(Constants.Tab + "MAXVALUE ");
+					swCreate.WriteLine(row["max_value"]);
+
+					swCreate.WriteLine(
+						Constants.Tab + ((bool) row["is_cycled"] ? "CYCLE" : "NO CYCLE"));
+
+					swCreate.Write(Constants.Tab + "CACHE ");
+					swCreate.WriteLine(row["cache_value"]);
+
+					swCreate.WriteLine(";");
+					swCreate.WriteLine();
+					
+					swDrop.WriteLine("DROP SEQUENCE " + seqName + ";");
 				}
 
 				swCreate.WriteCommitTrans();
@@ -389,7 +425,6 @@ namespace ConvertPG2SS {
 		/// <param name="schema"></param>
 		/// <param name="table"></param>
 		private static void WriteDropCommand(this TextWriter tw, string schema, string table) {
-			// TODO: 2015-09-27: the issue of constraints such as FOREIGN KEYS will come up.
 			var qual = "[" + schema + "].[" + table + "]";
 			tw.Write("IF OBJECT_ID ('" + qual + "') ");
 			tw.WriteLine("IS NOT NULL DROP TABLE " + qual + ";");
@@ -402,7 +437,6 @@ namespace ConvertPG2SS {
 		/// <param name="schema"></param>
 		/// <param name="table"></param>
 		private static void WriteTruncateCommand(this TextWriter tw, string schema, string table) {
-			// TODO: 2015-09-27: the issue of constraints such as FOREIGN KEYS will come up.
 			var qual = "[" + schema + "].[" + table + "]";
 			tw.WriteLine("TRUNCATE TABLE " + qual+ ";");
 		}
@@ -418,7 +452,7 @@ namespace ConvertPG2SS {
 			foreach (var def in defaults) {
 				if (string.IsNullOrEmpty(def[DefaultValue])) continue;
 
-				var defVal = Postgres.SsDefaultValue(def[DefaultValue]);
+				var defVal = Postgres.SsDefaultValue(def[SchemaName], def[DefaultValue]);
 				if (string.IsNullOrEmpty(defVal)) continue;
 
 				if (first) {

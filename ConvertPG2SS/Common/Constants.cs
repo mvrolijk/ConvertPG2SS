@@ -48,13 +48,13 @@ namespace ConvertPG2SS.Common {
 
 		// Scripts
 		public static string CreateSchemas => "00_create_schemas.sql";
-		public static string CreateTypes => "01_create_types.sql";
+		public static string CreateTypes => "01_create_types_&_sequences.sql";
 		public static string CreateTables => "02_create_tables.sql";
 		public static string CreateBulkCopy => "03_bulk_copy.sql";
 		public static string CreateIndexesEtAl => "04_create_indexes_&_constraints.sql";
 		public static string CreateSTruncateTables => "50_truncate_tables.sql";
 		public static string CreateDropTables => "51_drop_tables.sql";
-		public static string CreateDropTypes => "52_drop_types.sql";
+		public static string CreateDropTypes => "52_drop_types_&_sequences.sql";
 
 		// Other
 		public static string TimeStamp => "yyyy'-'MM'-'dd' 'HH':'mm':'ss.ffff";

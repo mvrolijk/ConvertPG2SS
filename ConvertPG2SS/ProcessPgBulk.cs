@@ -45,16 +45,14 @@ namespace ConvertPG2SS {
 		internal static void Do() {
 			_log = Program.GetInstance<IBLogger>();
 			_params = Program.GetInstance<IParameters>();
-			var frmConn = (NpgsqlConnection)_params[Constants.PgConnection];
 
+			var frmConn = (NpgsqlConnection)_params[Constants.PgConnection];
 			var tblDict = ((Dictionary<string, DataTable>)_params[Constants.PgTables]);
 
 			var dt = tblDict[Constants.PgSchemaTable];
-
 			var view = new DataView(dt);
 			var tables = view.ToTable(true, "schema_name", "table_name");
-
-
+			
 			CreateBulkFile(tables);
 			if (!bool.Parse(_params[Parameters.PostgresProcessBulk].ToString())) return;
 
