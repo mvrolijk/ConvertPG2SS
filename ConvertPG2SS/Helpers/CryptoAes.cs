@@ -120,27 +120,15 @@ namespace ConvertPG2SS.Helpers {
 			// Used to stream the data in and out of the CryptoStream.
 			var memoryStream = new MemoryStream();
 
-			/*
-			 * We will have to write the unencrypted bytes to the stream,
-			 * then read the encrypted result back from the stream.
-			 */
-
-			#region Write the decrypted value to the encryption stream
-
-			var cs = new CryptoStream(memoryStream,
-				_encryptorTransform, CryptoStreamMode.Write);
+			// We will have to write the unencrypted bytes to the stream,
+			// then read the encrypted result back from the stream.
+			var cs = new CryptoStream(memoryStream, _encryptorTransform, CryptoStreamMode.Write);
 			cs.Write(bytes, 0, bytes.Length);
 			cs.FlushFinalBlock();
-
-			#endregion
-
-			#region Read encrypted value back out of the stream
 
 			memoryStream.Position = 0;
 			var encrypted = new byte[memoryStream.Length];
 			memoryStream.Read(encrypted, 0, encrypted.Length);
-
-			#endregion
 
 			// Clean up.
 			cs.Dispose();
@@ -165,24 +153,16 @@ namespace ConvertPG2SS.Helpers {
 		/// <param name="encryptedValue">The encrypted bye array</param>
 		/// <returns>The decrypted string</returns>
 		internal string Decrypt(byte[] encryptedValue) {
-			#region Write the encrypted value to the decryption stream
-
 			var encryptedStream = new MemoryStream();
 			var decryptStream = new CryptoStream(encryptedStream,
 				_decryptorTransform, CryptoStreamMode.Write);
 			decryptStream.Write(encryptedValue, 0, encryptedValue.Length);
 			decryptStream.FlushFinalBlock();
 
-			#endregion
-
-			#region Read the decrypted value from the stream.
-
 			encryptedStream.Position = 0;
 			var decryptedBytes = new byte[encryptedStream.Length];
 			encryptedStream.Read(decryptedBytes, 0, decryptedBytes.Length);
 			encryptedStream.Close();
-
-			#endregion
 
 			return _utfEncoder.GetString(decryptedBytes);
 		}

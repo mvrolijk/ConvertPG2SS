@@ -269,7 +269,6 @@ namespace ConvertPG2SS {
 		/// </summary>
 		/// <param name="tw"></param>
 		/// <param name="row"></param>
-		/// <param name="dim"></param>
 		/// <param name="def"></param>
 		private static void GenerateColumn(
 			this TextWriter tw,
