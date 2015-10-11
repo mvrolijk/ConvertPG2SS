@@ -197,48 +197,33 @@ namespace ConvertPG2SS.Helpers {
 
 			switch (dt) {
 				case "bigint":
-					return "bigint";
+				case "char":
+				case "character":
+				case "date":
+				case "dec":
+				case "decimal":
+				case "double precision":
+				case "int":
+				case "integer":
+				case "money":
+				case "numeric":
+				case "real":
+				case "smallint":
+				case "text":
+				case "time":
+				case "xml":
+					return dt;
 				case "bytea":
 					return "binary";
 				case "boolean":
 					return "bit";
-				case "char":
-					return "char";
-				case "character":
-					return "character";
 				case "character varying":
 					return "varchar";
-				case "date":
-					return "date";
 				case "timestamp":
 				case "timestamp without time zone":
 					return "datetime2";
 				case "timestamp with time zone":
 					return "datetimeoffset";
-				case "dec":
-					return "dec";
-				case "decimal":
-					return "decimal";
-				case "double precision":
-					return "double precision";
-				case "int":
-					return "int";
-				case "integer":
-					return "integer";
-				case "money":
-					return "money";
-				case "numeric":
-					return "numeric";
-				case "real":
-					return "real";
-				case "smallint":
-					return "smallint";
-				case "text":
-					return "text";
-				case "time":
-					return "time";
-				case "xml":
-					return "xml";
 				default:
 					return "";
 			}
