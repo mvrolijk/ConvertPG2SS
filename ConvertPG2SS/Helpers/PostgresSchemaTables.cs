@@ -53,6 +53,7 @@ namespace ConvertPG2SS.Helpers {
 			CreateSchemaTable();
 			CreateTypeTable();
 			CreateSequenceTable();
+			CreateFkTable();
 		}
 
 		/// <summary>
@@ -408,6 +409,106 @@ namespace ConvertPG2SS.Helpers {
 
 					dtSeq.Dispose();
 				}
+			}
+		}
+
+		/// <summary>
+		/// 
+		/// </summary>
+		private static void CreateFkTable() {
+			#region PostgreSQL query to retrieve foreign keys information from pg_catalog.
+
+			const string sql =
+				@"SELECT pg_constraint.conname fk_name,
+						 ts.nspname schema_name, tt.relname table_name,
+						 os.nspname fk_schema, ot.relname fk_table,
+				(select attname from pg_attribute where attrelid = pg_constraint.conrelid 
+					and attnum = pg_constraint.conkey[01]) key01,
+				(select attname from pg_attribute where attrelid = pg_constraint.conrelid 
+					and attnum = pg_constraint.conkey[02]) key02,
+				(select attname from pg_attribute where attrelid = pg_constraint.conrelid 
+					and attnum = pg_constraint.conkey[03]) key03,
+				(select attname from pg_attribute where attrelid = pg_constraint.conrelid 
+					and attnum = pg_constraint.conkey[04]) key04,
+				(select attname from pg_attribute where attrelid = pg_constraint.conrelid 
+					and attnum = pg_constraint.conkey[05]) key05,
+				(select attname from pg_attribute where attrelid = pg_constraint.conrelid 
+					and attnum = pg_constraint.conkey[06]) key06,
+				(select attname from pg_attribute where attrelid = pg_constraint.conrelid 
+					and attnum = pg_constraint.conkey[07]) key07,
+				(select attname from pg_attribute where attrelid = pg_constraint.conrelid 
+					and attnum = pg_constraint.conkey[08]) key08,
+				(select attname from pg_attribute where attrelid = pg_constraint.conrelid 
+					and attnum = pg_constraint.conkey[09]) key09,
+				(select attname from pg_attribute where attrelid = pg_constraint.conrelid 
+					and attnum = pg_constraint.conkey[10]) key10,
+				(select attname from pg_attribute where attrelid = pg_constraint.conrelid
+					and attnum = pg_constraint.conkey[11]) key11,
+				(select attname from pg_attribute where attrelid = pg_constraint.conrelid 
+					and attnum = pg_constraint.conkey[12]) key12,
+				(select attname from pg_attribute where attrelid = pg_constraint.conrelid 
+					and attnum = pg_constraint.conkey[13]) key13,
+				(select attname from pg_attribute where attrelid = pg_constraint.conrelid 
+					and attnum = pg_constraint.conkey[14]) key14,
+				(select attname from pg_attribute where attrelid = pg_constraint.conrelid 
+					and attnum = pg_constraint.conkey[15]) key15,
+				(select attname from pg_attribute where attrelid = pg_constraint.conrelid 
+					and attnum = pg_constraint.conkey[16]) key16,
+				(select attname from pg_attribute where attrelid = pg_constraint.confrelid 
+					and attnum = pg_constraint.confkey[01]) fkey01,
+				(select attname from pg_attribute where attrelid = pg_constraint.confrelid 
+					and attnum = pg_constraint.confkey[02]) fkey02,
+				(select attname from pg_attribute where attrelid = pg_constraint.confrelid 
+					and attnum = pg_constraint.confkey[03]) fkey03,
+				(select attname from pg_attribute where attrelid = pg_constraint.confrelid 
+					and attnum = pg_constraint.confkey[04]) fkey04,
+				(select attname from pg_attribute where attrelid = pg_constraint.confrelid 
+					and attnum = pg_constraint.confkey[05]) fkey05,
+				(select attname from pg_attribute where attrelid = pg_constraint.confrelid 
+					and attnum = pg_constraint.confkey[06]) fkey06,
+				(select attname from pg_attribute where attrelid = pg_constraint.confrelid 
+					and attnum = pg_constraint.confkey[07]) fkey07,
+				(select attname from pg_attribute where attrelid = pg_constraint.confrelid 
+					and attnum = pg_constraint.confkey[08]) fkey08,
+				(select attname from pg_attribute where attrelid = pg_constraint.confrelid 
+					and attnum = pg_constraint.confkey[09]) fkey09,
+				(select attname from pg_attribute where attrelid = pg_constraint.confrelid 
+					and attnum = pg_constraint.confkey[10]) fkey10,
+				(select attname from pg_attribute where attrelid = pg_constraint.confrelid 
+					and attnum = pg_constraint.confkey[11]) fkey11,
+				(select attname from pg_attribute where attrelid = pg_constraint.confrelid 
+					and attnum = pg_constraint.confkey[12]) fkey12,
+				(select attname from pg_attribute where attrelid = pg_constraint.confrelid 
+					and attnum = pg_constraint.confkey[13]) fkey13,
+				(select attname from pg_attribute where attrelid = pg_constraint.confrelid 
+					and attnum = pg_constraint.confkey[14]) fkey14,
+				(select attname from pg_attribute where attrelid = pg_constraint.confrelid 
+					and attnum = pg_constraint.confkey[15]) fkey15,
+				(select attname from pg_attribute where attrelid = pg_constraint.confrelid 
+					and attnum = pg_constraint.confkey[16]) fkey16
+			FROM	pg_constraint
+				JOIN pg_class as tt ON tt.oid = pg_constraint.conrelid
+					JOIN pg_namespace as ts ON tt.relnamespace = ts.oid
+				JOIN pg_class as ot ON ot.oid = pg_constraint.confrelid
+					JOIN pg_namespace as os ON ot.relnamespace = os.oid
+			WHERE	pg_constraint.contype = 'f' ORDER BY 1";
+
+			#endregion
+
+			var tblDict = ((Dictionary<string, DataTable>)_params[Constants.PgTables]);
+			var dt = tblDict[Constants.PgFkTable];
+
+			NpgsqlDataAdapter da = null;
+
+			try {
+				da = new NpgsqlDataAdapter(sql, _pgConn);
+				da.Fill(dt);
+			}
+			catch (NpgsqlException ex) {
+				_log.WriteEx('E', Constants.LogTsType, ex);
+			}
+			finally {
+				da?.Dispose();
 			}
 		}
 	}

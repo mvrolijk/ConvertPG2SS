@@ -84,7 +84,8 @@ namespace ConvertPG2SS.Services {
 			var tblDict = new Dictionary<string, DataTable> {
 				{Constants.PgSchemaTable, new DataTable(Constants.PgSchemaTable)},
 				{Constants.PgTypeTable, new DataTable(Constants.PgTypeTable)},
-				{Constants.PgSeqTable, new DataTable(Constants.PgSeqTable)}
+				{Constants.PgSeqTable, new DataTable(Constants.PgSeqTable)},
+				{Constants.PgFkTable, new DataTable(Constants.PgFkTable)}
 			};
 			_param.Add(Constants.PgTables,tblDict);
 		}
@@ -246,7 +247,7 @@ namespace ConvertPG2SS.Services {
 					}
 				}
 				_log.WriteEx('E', Constants.LogTsType, ex);
-				return null;
+				throw;
 			}
 		}
 

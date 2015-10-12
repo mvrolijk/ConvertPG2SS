@@ -147,7 +147,8 @@ namespace ConvertPG2SS.Helpers {
 
 			p = def.IndexOf("::", StringComparison.Ordinal);
 			if (p > 0) {
-				typ = def.Substring(p + 2);
+				var p2 = def.IndexOf("(", p + 2, StringComparison.Ordinal);
+				typ = p2 > 0 ? def.Substring(p + 2, p2 - p - 2) : def.Substring(p + 2);
 				val = def.Substring(0, p);
 			}
 			else {
@@ -169,9 +170,14 @@ namespace ConvertPG2SS.Helpers {
 					}
 				case "bpchar":
 				case "date":
+				case "timestamp without time zone":
+				case "character":
+				case "character varying":
+				case "interval":
+				case "text":
 					return val;
 				default:
-					return null;
+					return "";
 			}
 		}
 

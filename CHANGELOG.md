@@ -2,6 +2,13 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.0.9] - 2015-10-12
+### Added
+- Foreign keys constraints
+
+### Changed
+- Fixed a default values bug,
+
 ## [0.0.8] - 2015-10-10
 ### Added
 - Sequences

@@ -41,7 +41,9 @@ namespace ConvertPG2SS.Common {
 		public static string PgSchemaTable => "pg_schematable";
 		public static string PgTypeTable => "pg_typetable";
 		public static string PgSeqTable => "pg_seqtable";
+		public static string PgFkTable => "pg_fktable";
 		public static string PgDefaultSchema => "public";
+		public static int    PgMaxFkeys => 16;
 
 		// MSSQL
 		public static string SsDefaultSchema => "dbo";
@@ -52,6 +54,7 @@ namespace ConvertPG2SS.Common {
 		public static string CreateTables => "02_create_tables.sql";
 		public static string CreateBulkCopy => "03_bulk_copy.sql";
 		public static string CreateIndexesEtAl => "04_create_indexes_&_constraints.sql";
+		public static string CreateForeignKeys => "05_create_fk_constraints.sql";
 		public static string CreateSTruncateTables => "50_truncate_tables.sql";
 		public static string CreateDropTables => "51_drop_tables.sql";
 		public static string CreateDropTypes => "52_drop_types_&_sequences.sql";

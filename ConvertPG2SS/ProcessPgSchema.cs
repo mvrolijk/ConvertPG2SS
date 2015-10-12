@@ -31,6 +31,7 @@ using System.Data;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using ConvertPG2SS.Common;
 using ConvertPG2SS.Helpers;
 using ConvertPG2SS.Interfaces;
@@ -71,11 +72,14 @@ namespace ConvertPG2SS {
 
 			var typeTable = tblDict[Constants.PgTypeTable];
 			var seqTable = tblDict[Constants.PgSeqTable];
+			var fkTable = tblDict[Constants.PgFkTable];
+
 			if (typeTable.Rows.Count > 0 || seqTable.Rows.Count > 0)
 				GenerateTypeScripts(typeTable, seqTable);
 
 			GenerateTableScripts(schemaTable, frmConn);
 			GenerateBuildIndexes(frmConn);
+			GenerateFkConstraints(fkTable);
 
 			return true;
 		}
@@ -663,6 +667,68 @@ namespace ConvertPG2SS {
 			
 			tw.WriteLine("GO");
 			tw.WriteLine();
+		}
+
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="dt"></param>
+		private static void GenerateFkConstraints(DataTable dt) {
+			var path = Path.Combine(
+				_params[Parameters.OtherWorkPath].ToString(), Constants.CreateForeignKeys);
+
+			using (var sw = new StreamWriter(path, false, Encoding.Default)) {
+				sw.WriteBeginTrans();
+
+				foreach (DataRow row in dt.Rows) {
+					sw.WriteFkStatement(row);
+				}
+				sw.WriteCommitTrans();
+			}
+		}
+
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="tw"></param>
+		/// <param name="row"></param>
+		private static void WriteFkStatement(this TextWriter tw, DataRow row) {
+			// TODO: 2015-10-12: there's an issue when the column is also part of the PK.
+			var fkName = row["fk_name"].ToString();
+			var p = fkName.IndexOf("_fkey", StringComparison.Ordinal);
+			if (p > 0) fkName = fkName.Substring(0, p);
+
+			tw.Write("ALTER TABLE [");
+			tw.WriteLine(row["schema_name"] + "].[" + row["table_name"] + "]");
+			tw.Write("ADD CONSTRAINT FK_" + fkName + " FOREIGN KEY (");
+			tw.WriteLine(GetFkColumns(row, false) + ")");
+			tw.Write(Constants.Tab + "REFERENCES [");
+			tw.Write(row["fk_schema"] + "].[" + row["fk_table"] + "] (");
+			tw.WriteLine(GetFkColumns(row, true) + ")");
+			tw.WriteLine(Constants.Tab + "ON DELETE CASCADE");
+			tw.WriteLine(Constants.Tab + "ON UPDATE CASCADE;");
+			tw.WriteLine("GO");
+			tw.WriteLine();
+		}
+
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="row"></param>
+		/// <param name="fkTable"></param>
+		/// <returns></returns>
+		private static string GetFkColumns(DataRow row, bool fkTable) {
+			var sb = new StringBuilder();
+
+			var key = fkTable ? "fkey" : "key";
+
+			for (var i = 0; i < Constants.PgMaxFkeys; i++) {
+				var col = row[key + (i + 1).ToString("D2")].ToString();
+				if (i > 0 && !string.IsNullOrEmpty(col)) sb.Append(", ");
+				if (!string.IsNullOrEmpty(col)) sb.Append("[" + col + "]");
+			}
+
+			return sb.ToString();
 		}
 
 		/// <summary>

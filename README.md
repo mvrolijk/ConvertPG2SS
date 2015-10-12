@@ -21,6 +21,7 @@ It's in a pre-alpha stage, so *caveat emptor*.
   Separated Values) files.
   - **04_create_indexes_&_constraints.sql**: creates the primary keys and indexes.
   Unique keys and foreing keys are in the pipeline.
+  - **05_create_fk_constraints.sql**: creates the foreign keys.
   - **50_truncate_tables.sql**: truncate all the tables, in  case you need to redo
   the bulk copy.
   - **51_drop_tables.sql**: drop all the tables.
@@ -33,7 +34,6 @@ It's in a pre-alpha stage, so *caveat emptor*.
 
 ## TODO:
 
-* Foreign keys
 * More complex column constraints (like CHECK)
 
 ## Wish List
