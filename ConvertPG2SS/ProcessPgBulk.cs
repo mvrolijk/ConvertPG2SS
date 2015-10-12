@@ -229,6 +229,7 @@ namespace ConvertPG2SS {
 					}
 					var j = 0;
 					foreach (var val in enumerable) {
+						// TODO: 2015-10-12: checl also for cases with ragged arrays.
 						if (j > 0) sb.Append(Constants.Tab);
 						sb.Append(FormatColumnVal(val, column));
 						j++;
