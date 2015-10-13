@@ -33,9 +33,10 @@ using ConvertPG2SS.Common;
 using ConvertPG2SS.Interfaces;
 using Npgsql;
 
-namespace ConvertPG2SS.Helpers {
-	internal static class Postgres {
-
+namespace ConvertPG2SS.Helpers
+{
+	internal static class Postgres
+	{
 		private static readonly IBLogger Log = Program.GetInstance<IBLogger>();
 		private static readonly IParameters Params = Program.GetInstance<IParameters>();
 
@@ -50,14 +51,17 @@ namespace ConvertPG2SS.Helpers {
 		/// </summary>
 		/// <param name="sqlStmt">The SQL statement to execute</param>
 		/// <param name="conn">The open connection object to the database</param>
-		internal static int ExecuteSql(string sqlStmt, NpgsqlConnection conn) {
+		internal static int ExecuteSql(string sqlStmt, NpgsqlConnection conn)
+		{
 			NpgsqlCommand cmd = null;
 
-			try {
+			try
+			{
 				cmd = new NpgsqlCommand(sqlStmt, conn);
 				return cmd.ExecuteNonQuery();
 			}
-			catch (NpgsqlException ex) {
+			catch (NpgsqlException ex)
+			{
 				Log.Write('E', ' ', sqlStmt);
 				Log.WriteEx('E', Constants.LogTsType, ex);
 				return -1;
@@ -72,11 +76,13 @@ namespace ConvertPG2SS.Helpers {
 		/// </summary>
 		/// <param name="pgDataType"></param>
 		/// <returns></returns>
-		internal static string SsDataType(string pgDataType) {
+		internal static string SsDataType(string pgDataType)
+		{
 			var p = pgDataType.IndexOf('[');
 			var dt = p >= 0 ? pgDataType.Substring(0, p) : pgDataType;
 
-			switch (dt) {
+			switch (dt)
+			{
 				case "bigint":
 				case "char":
 				case "character":
@@ -115,7 +121,8 @@ namespace ConvertPG2SS.Helpers {
 		/// </summary>
 		/// <param name="dataType"></param>
 		/// <returns></returns>
-		internal static DataRow PgDomainType(string dataType) {
+		internal static DataRow PgDomainType(string dataType)
+		{
 			var dt = PgTables[Constants.PgTypeTable];
 			var critera = "type_name = '" + dataType + "'";
 			var rows = dt.Select(critera);
@@ -126,7 +133,6 @@ namespace ConvertPG2SS.Helpers {
 					CultureInfo.InvariantCulture,
 					"{0} rows found: 1 expected.",
 					rows.Length));
-
 		}
 
 		/// <summary>
@@ -135,7 +141,8 @@ namespace ConvertPG2SS.Helpers {
 		/// <param name="schema"></param>
 		/// <param name="def"></param>
 		/// <returns></returns>
-		internal static string SsDefaultValue(string schema, string def) {
+		internal static string SsDefaultValue(string schema, string def)
+		{
 			string typ;
 			string val;
 
@@ -146,19 +153,23 @@ namespace ConvertPG2SS.Helpers {
 			}
 
 			p = def.IndexOf("::", StringComparison.Ordinal);
-			if (p > 0) {
+			if (p > 0)
+			{
 				var p2 = def.IndexOf("(", p + 2, StringComparison.Ordinal);
 				typ = p2 > 0 ? def.Substring(p + 2, p2 - p - 2) : def.Substring(p + 2);
 				val = def.Substring(0, p);
 			}
-			else {
+			else
+			{
 				typ = "";
 				val = def;
 			}
 
-			switch (typ) {
+			switch (typ)
+			{
 				case "":
-					switch (val) {
+					switch (val)
+					{
 						case "now()":
 							return "GETDATE()";
 						case "false":
@@ -187,7 +198,8 @@ namespace ConvertPG2SS.Helpers {
 		/// <param name="schema"></param>
 		/// <param name="def"></param>
 		/// <returns></returns>
-		private static string Sequence(string schema, string def) {
+		private static string Sequence(string schema, string def)
+		{
 			var b = def.IndexOf("'", StringComparison.Ordinal);
 			var e = def.IndexOf("'", b + 1, StringComparison.Ordinal);
 			var seq = def.Substring(b + 1, e - b - 1);
@@ -199,7 +211,8 @@ namespace ConvertPG2SS.Helpers {
 		/// </summary>
 		/// <param name="maxVal">Maximun value</param>
 		/// <returns>SS data type</returns>
-		internal static string GetTypeByMaxVal(long maxVal) {
+		internal static string GetTypeByMaxVal(long maxVal)
+		{
 			if (maxVal <= 255) return "tinyint";
 			if (maxVal <= short.MaxValue) return "smallint";
 			return maxVal <= int.MaxValue ? "int" : "bigint";

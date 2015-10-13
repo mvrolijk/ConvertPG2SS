@@ -34,8 +34,10 @@ using ConvertPG2SS.Common;
 using ConvertPG2SS.Interfaces;
 using Npgsql;
 
-namespace ConvertPG2SS.Helpers {
-	internal static class PostgresSchemaTables {
+namespace ConvertPG2SS.Helpers
+{
+	internal static class PostgresSchemaTables
+	{
 		private static IBLogger _log;
 		private static IParameters _params;
 		private static NpgsqlConnection _pgConn;
@@ -45,7 +47,8 @@ namespace ConvertPG2SS.Helpers {
 		/// <summary>
 		/// 
 		/// </summary>
-		internal static void CreateTables() {
+		internal static void CreateTables()
+		{
 			_log = Program.GetInstance<IBLogger>();
 			_params = Program.GetInstance<IParameters>();
 			_pgConn = (NpgsqlConnection) _params[Constants.PgConnection];
@@ -59,7 +62,8 @@ namespace ConvertPG2SS.Helpers {
 		/// <summary>
 		/// 
 		/// </summary>
-		private static void CreateSchemaTable() {
+		private static void CreateSchemaTable()
+		{
 			#region PostgreSQL query to retrieve coloumn information from pg_catalog.
 
 			var inclPublic = bool.Parse(_params[Parameters.PostgresIncludePublic].ToString());
@@ -121,21 +125,20 @@ namespace ConvertPG2SS.Helpers {
 
 			NpgsqlDataAdapter da = null;
 
-			try {
+			try
+			{
 				da = new NpgsqlDataAdapter(sql, _pgConn);
 				da.Fill(dt);
 			}
 			catch (NpgsqlException ex) {
 				_log.WriteEx('E', Constants.LogTsType, ex);
 			}
-			finally {
-				da?.Dispose();
-			}
+			finally { da?.Dispose(); }
 
 			if (dt.Rows.Count == 0) return;
 
 			// Add a dim size coloumn.
-			dt.Columns.Add("dim_size", typeof(int));
+			dt.Columns.Add("dim_size", typeof (int));
 
 			// Add primary key to table.
 			var columns = new DataColumn[3];
@@ -151,12 +154,14 @@ namespace ConvertPG2SS.Helpers {
 		///     Process all the tables that have bytea or array columns.
 		/// </summary>
 		/// <param name="dt"></param>
-		private static void ProcessDimensions(DataTable dt) {
+		private static void ProcessDimensions(DataTable dt)
+		{
 			var dts = dt.Select("dims <> 0 OR regtype = 'bytea'");
 
 			// Select all the tables that have at least one dimensioned column. 
 			var tables = dts
-				.Select(m => new {
+				.Select(m => new
+				{
 					sn = m.Field<string>("schema_name"),
 					tb = m.Field<string>("table_name")
 				}).Distinct();
@@ -165,22 +170,22 @@ namespace ConvertPG2SS.Helpers {
 				CultureInfo.InvariantCulture,
 				"schema_name = '{0}' AND table_name = '{1}' AND " +
 				"(dims <> 0 OR regtype = 'bytea')",
-				table.sn, table.tb)).Select(dt.Select)) {
-				ProcessDimRows(dimRows);
-			}
+				table.sn, table.tb)).Select(dt.Select)) { ProcessDimRows(dimRows); }
 		}
 
 		/// <summary>
 		///     Procces the bytea or array columns.
 		/// </summary>
 		/// <param name="dr"></param>
-		private static void ProcessDimRows(DataRow[] dr) {
+		private static void ProcessDimRows(DataRow[] dr)
+		{
 			var sql = BuildCommand(dr);
 
 			var dt = new DataTable();
 			NpgsqlDataAdapter da = null;
 
-			try {
+			try
+			{
 				da = new NpgsqlDataAdapter(sql, _pgConn);
 				da.Fill(dt);
 
@@ -188,7 +193,8 @@ namespace ConvertPG2SS.Helpers {
 
 				var dimRow = dt.Rows[0];
 
-				foreach (var row in dr) {
+				foreach (var row in dr)
+				{
 					var rowName = row["column_name"] + DimPostfix;
 					if (row["regtype"].ToString() != "bytea")
 						row["dim_size"] = dimRow[rowName];
@@ -198,11 +204,11 @@ namespace ConvertPG2SS.Helpers {
 			catch (NpgsqlException ex) {
 				_log.WriteEx('E', Constants.LogTsType, ex);
 			}
-			finally {
+			finally
+			{
 				dt.Dispose();
 				da?.Dispose();
 			}
-
 		}
 
 		/// <summary>
@@ -211,7 +217,8 @@ namespace ConvertPG2SS.Helpers {
 		/// </summary>
 		/// <param name="dr"></param>
 		/// <returns></returns>
-		private static string BuildCommand(IEnumerable<DataRow> dr) {
+		private static string BuildCommand(IEnumerable<DataRow> dr)
+		{
 			var sb = new StringBuilder();
 			var first = true;
 			var table = "";
@@ -220,8 +227,10 @@ namespace ConvertPG2SS.Helpers {
 			sb.Append("SELECT ");
 
 			// TODO: 2015-10-10: what if you have a bytea array?
-			foreach (var row in dr) {
-				if (first) {
+			foreach (var row in dr)
+			{
+				if (first)
+				{
 					table = row["schema_name"] + "." + row["table_name"];
 					first = false;
 				}
@@ -237,13 +246,13 @@ namespace ConvertPG2SS.Helpers {
 
 			sb.Append(" FROM ");
 
-			if (lim > 0) {
+			if (lim > 0)
+			{
 				sb.Append("( SELECT * FROM " + table + " LIMIT " + lim);
 				sb.Append(") t");
 			}
-			else {
-				sb.Append(table);
-			}
+			else
+			{ sb.Append(table); }
 
 			return sb.ToString();
 		}
@@ -251,7 +260,8 @@ namespace ConvertPG2SS.Helpers {
 		/// <summary>
 		/// 
 		/// </summary>
-		private static void CreateTypeTable() {
+		private static void CreateTypeTable()
+		{
 			#region PostgreSQL query to retrieve type/domain information from pg_catalog.
 
 			const string sql =
@@ -305,17 +315,16 @@ namespace ConvertPG2SS.Helpers {
 
 			NpgsqlDataAdapter da = null;
 
-			try {
+			try
+			{
 				da = new NpgsqlDataAdapter(sql, _pgConn);
 				da.Fill(dt);
 			}
 			catch (NpgsqlException ex) {
 				_log.WriteEx('E', Constants.LogTsType, ex);
 			}
-			finally {
-				da?.Dispose();
-			}
-			
+			finally { da?.Dispose(); }
+
 			if (dt.Rows.Count == 0) return;
 
 			// Add primary key to table.
@@ -328,7 +337,8 @@ namespace ConvertPG2SS.Helpers {
 		/// <summary>
 		/// 
 		/// </summary>
-		private static void CreateSequenceTable() {
+		private static void CreateSequenceTable()
+		{
 			var inclPublic = bool.Parse(_params[Parameters.PostgresIncludePublic].ToString());
 			var inList = "'pg_catalog', 'information_schema'";
 			if (!inclPublic) inList += ", 'public'";
@@ -343,34 +353,33 @@ namespace ConvertPG2SS.Helpers {
 					ORDER	BY n.nspname ASC, c.relname ASC",
 					inList);
 
-			var tblDict = ((Dictionary<string, DataTable>)_params[Constants.PgTables]);
+			var tblDict = ((Dictionary<string, DataTable>) _params[Constants.PgTables]);
 			var dt = tblDict[Constants.PgSeqTable];
 
 			NpgsqlDataAdapter da = null;
 
-			try {
+			try
+			{
 				da = new NpgsqlDataAdapter(sql, _pgConn);
 				da.Fill(dt);
 			}
 			catch (NpgsqlException ex) {
 				_log.WriteEx('E', Constants.LogTsType, ex);
 			}
-			finally {
-				da?.Dispose();
-			}
+			finally { da?.Dispose(); }
 
 			if (dt.Rows.Count == 0) return;
 
 			// Add sequence specification columns.
-			dt.Columns.Add("last_value", typeof(long));
-			dt.Columns.Add("start_value", typeof(long));
-			dt.Columns.Add("increment_by", typeof(long));
-			dt.Columns.Add("max_value", typeof(long));
-			dt.Columns.Add("min_value", typeof(long));
-			dt.Columns.Add("cache_value", typeof(long));
-			dt.Columns.Add("log_cnt", typeof(long));
-			dt.Columns.Add("is_cycled", typeof(bool));
-			dt.Columns.Add("is_called", typeof(bool));
+			dt.Columns.Add("last_value", typeof (long));
+			dt.Columns.Add("start_value", typeof (long));
+			dt.Columns.Add("increment_by", typeof (long));
+			dt.Columns.Add("max_value", typeof (long));
+			dt.Columns.Add("min_value", typeof (long));
+			dt.Columns.Add("cache_value", typeof (long));
+			dt.Columns.Add("log_cnt", typeof (long));
+			dt.Columns.Add("is_cycled", typeof (bool));
+			dt.Columns.Add("is_called", typeof (bool));
 
 			// Add primary key to table.
 			var columns = new DataColumn[2];
@@ -385,15 +394,18 @@ namespace ConvertPG2SS.Helpers {
 		/// 
 		/// </summary>
 		/// <param name="dt"></param>
-		private static void ReadSequenceDetails(DataTable dt) {
-			foreach (DataRow row in dt.Rows) {
+		private static void ReadSequenceDetails(DataTable dt)
+		{
+			foreach (DataRow row in dt.Rows)
+			{
 				var sql = string.Format(
 					CultureInfo.InvariantCulture,
 					"SELECT * FROM {0}.{1}",
 					row["schema_name"], row["seq_name"]);
 
 				var dtSeq = new DataTable();
-				using (var da = new NpgsqlDataAdapter(sql, _pgConn)) {
+				using (var da = new NpgsqlDataAdapter(sql, _pgConn))
+				{
 					da.Fill(dtSeq);
 					if (dtSeq.Rows.Count == 0) continue;
 
@@ -415,7 +427,8 @@ namespace ConvertPG2SS.Helpers {
 		/// <summary>
 		/// 
 		/// </summary>
-		private static void CreateFkTable() {
+		private static void CreateFkTable()
+		{
 			#region PostgreSQL query to retrieve foreign keys information from pg_catalog.
 
 			const string sql =
@@ -495,21 +508,20 @@ namespace ConvertPG2SS.Helpers {
 
 			#endregion
 
-			var tblDict = ((Dictionary<string, DataTable>)_params[Constants.PgTables]);
+			var tblDict = ((Dictionary<string, DataTable>) _params[Constants.PgTables]);
 			var dt = tblDict[Constants.PgFkTable];
 
 			NpgsqlDataAdapter da = null;
 
-			try {
+			try
+			{
 				da = new NpgsqlDataAdapter(sql, _pgConn);
 				da.Fill(dt);
 			}
 			catch (NpgsqlException ex) {
 				_log.WriteEx('E', Constants.LogTsType, ex);
 			}
-			finally {
-				da?.Dispose();
-			}
+			finally { da?.Dispose(); }
 		}
 	}
 }

@@ -35,11 +35,13 @@ using System.Security.Cryptography;
 using System.Text;
 using ConvertPG2SS.Common;
 
-namespace ConvertPG2SS.Helpers {
+namespace ConvertPG2SS.Helpers
+{
 	/// <summary>
 	///     The CryptoAes class. Used to encrypt and decrypt sensitive data.
 	/// </summary>
-	class CryptoAes {
+	internal class CryptoAes
+	{
 		private readonly ICryptoTransform _decryptorTransform;
 		private readonly ICryptoTransform _encryptorTransform;
 		private readonly UTF8Encoding _utfEncoder;
@@ -47,16 +49,19 @@ namespace ConvertPG2SS.Helpers {
 		/// <summary>
 		///     Constructor.
 		/// </summary>
-		internal CryptoAes(byte[] key, byte[] vector) {
+		internal CryptoAes(byte[] key, byte[] vector)
+		{
 			if (key == null) throw new ArgumentNullException(nameof(key));
 			if (vector == null) throw new ArgumentNullException(nameof(vector));
 
-			if (key.Length != Constants.KeySize) {
+			if (key.Length != Constants.KeySize)
+			{
 				throw new ArgumentOutOfRangeException(
 					$"Key length must be {Constants.KeySize}; {key.Length} was provided.");
 			}
 
-			if (vector.Length != Constants.VectorSize) {
+			if (vector.Length != Constants.VectorSize)
+			{
 				throw new ArgumentOutOfRangeException(
 					$"Vector length must be {Constants.VectorSize}; {vector.Length} was provided.");
 			}
@@ -77,7 +82,8 @@ namespace ConvertPG2SS.Helpers {
 		///     Generates an encryption key.
 		/// </summary>
 		/// <returns>Encryption key</returns>
-		internal byte[] GenerateEncryptionKey() {
+		internal byte[] GenerateEncryptionKey()
+		{
 			// Generate a Key.
 			var rm = new RijndaelManaged();
 			rm.GenerateKey();
@@ -88,7 +94,8 @@ namespace ConvertPG2SS.Helpers {
 		///     Generates a unique encryption vector.
 		/// </summary>
 		/// <returns>Encryption vector</returns>
-		internal byte[] GenerateEncryptionVector() {
+		internal byte[] GenerateEncryptionVector()
+		{
 			// Generate a Vector.
 			var rm = new RijndaelManaged();
 			rm.GenerateIV();
@@ -104,7 +111,8 @@ namespace ConvertPG2SS.Helpers {
 		///     A string representing the encrypted text, which is suitable
 		///     for passing in a URL.
 		/// </returns>
-		internal string EncryptToString(string textValue, bool hex = false) {
+		internal string EncryptToString(string textValue, bool hex = false)
+		{
 			return ByteArrToString(Encrypt(textValue), hex);
 		}
 
@@ -113,7 +121,8 @@ namespace ConvertPG2SS.Helpers {
 		/// </summary>
 		/// <param name="textValue">Text to be encrypted</param>
 		/// <returns>Byte array representing the encrypted text</returns>
-		internal byte[] Encrypt(string textValue) {
+		internal byte[] Encrypt(string textValue)
+		{
 			// Translates our text value into a byte array.
 			var bytes = _utfEncoder.GetBytes(textValue);
 
@@ -143,7 +152,8 @@ namespace ConvertPG2SS.Helpers {
 		/// <param name="encryptedString">The encrypted string</param>
 		/// <param name="hex"></param>
 		/// <returns>The decrypted string</returns>
-		internal string DecryptString(string encryptedString, bool hex = false) {
+		internal string DecryptString(string encryptedString, bool hex = false)
+		{
 			return Decrypt(StrToByteArray(encryptedString, hex));
 		}
 
@@ -152,7 +162,8 @@ namespace ConvertPG2SS.Helpers {
 		/// </summary>
 		/// <param name="encryptedValue">The encrypted bye array</param>
 		/// <returns>The decrypted string</returns>
-		internal string Decrypt(byte[] encryptedValue) {
+		internal string Decrypt(byte[] encryptedValue)
+		{
 			var encryptedStream = new MemoryStream();
 			var decryptStream = new CryptoStream(encryptedStream,
 				_decryptorTransform, CryptoStreamMode.Write);
@@ -179,21 +190,23 @@ namespace ConvertPG2SS.Helpers {
 		/// <param name="str">The string to be converted</param>
 		/// <param name="hex"></param>
 		/// <returns>A byte array representing 'str'</returns>
-		private static byte[] StrToByteArray(string str, bool hex) {
+		private static byte[] StrToByteArray(string str, bool hex)
+		{
 			if (str.Length == 0) {
 				throw new ArgumentException("Invalid string value in StrToByteArray");
 			}
 
 			var ln = hex ? 2 : 3;
-			var byteArr = new byte[str.Length / ln];
+			var byteArr = new byte[str.Length/ln];
 			var i = 0;
 			var j = 0;
-			do {
-				var val = hex 
+			do
+			{
+				var val = hex
 					? byte.Parse(
-						str.Substring(i, ln), 
-						NumberStyles.AllowHexSpecifier, 
-						CultureInfo.InvariantCulture) 
+						str.Substring(i, ln),
+						NumberStyles.AllowHexSpecifier,
+						CultureInfo.InvariantCulture)
 					: byte.Parse(str.Substring(i, ln), CultureInfo.InvariantCulture);
 				byteArr[j++] = val;
 				i += ln;
@@ -210,12 +223,15 @@ namespace ConvertPG2SS.Helpers {
 		/// <param name="byteArr">Byte array to be converted</param>
 		/// <param name="hex"></param>
 		/// <returns>Converted string</returns>
-		private static string ByteArrToString(ICollection<byte> byteArr, bool hex) {
+		private static string ByteArrToString(ICollection<byte> byteArr, bool hex)
+		{
 			StringBuilder tempStr;
-			switch (hex) {
+			switch (hex)
+			{
 				case false:
-					tempStr = new StringBuilder(byteArr.Count * 3);
-					foreach (var b in byteArr) {
+					tempStr = new StringBuilder(byteArr.Count*3);
+					foreach (var b in byteArr)
+					{
 						if (b < 10) tempStr.Append("00");
 						else if (b < 100) tempStr.Append("0");
 						tempStr.Append(b.ToString(CultureInfo.InvariantCulture));
@@ -223,7 +239,7 @@ namespace ConvertPG2SS.Helpers {
 					break;
 
 				default:
-					tempStr = new StringBuilder(byteArr.Count * 2);
+					tempStr = new StringBuilder(byteArr.Count*2);
 					foreach (var b in byteArr) tempStr.AppendFormat("{0:x2}", b);
 					break;
 			}

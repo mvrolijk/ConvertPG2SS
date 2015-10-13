@@ -37,33 +37,37 @@ using ConvertPG2SS.Helpers;
 using ConvertPG2SS.Interfaces;
 using Npgsql;
 
-namespace ConvertPG2SS {
-	static class ProcessPgSchema {
+namespace ConvertPG2SS
+{
+	internal static class ProcessPgSchema
+	{
 		private static IBLogger _log;
 		private static IParameters _params;
 
 		// Column info array index
-		private static int SchemaName   => 0;
-		private static int TableName    => 1;
-		private static int ColumnName   => 2;
-		private static int DataType     => 3;
+		private static int SchemaName => 0;
+		private static int TableName => 1;
+		private static int ColumnName => 2;
+		private static int DataType => 3;
 		private static int DefaultValue => 4;
-		private static int Comment      => 5;
+		private static int Comment => 5;
 
 		/// <summary>
 		///     Generate the scripts.
 		/// </summary>
-		internal static bool Do() {
+		internal static bool Do()
+		{
 			_log = Program.GetInstance<IBLogger>();
 			_params = Program.GetInstance<IParameters>();
 
 			var frmConn = (NpgsqlConnection) _params[Constants.PgConnection];
 			PostgresSchemaTables.CreateTables();
 
-			var tblDict = ((Dictionary<string, DataTable>)_params[Constants.PgTables]);
+			var tblDict = ((Dictionary<string, DataTable>) _params[Constants.PgTables]);
 			var schemaTable = tblDict[Constants.PgSchemaTable];
 
-			if (schemaTable.Rows.Count == 0) {
+			if (schemaTable.Rows.Count == 0)
+			{
 				_log.Write('E', Constants.LogTsType, "There are no records to be processed.");
 				return false;
 			}
@@ -88,17 +92,19 @@ namespace ConvertPG2SS {
 		///     Generate the CREATE SCHEMA statements.
 		/// </summary>
 		/// <param name="dt"></param>
-		private static void GenerateSchemaScript(DataTable dt) {
+		private static void GenerateSchemaScript(DataTable dt)
+		{
 			var path = Path.Combine(
 				_params[Parameters.OtherWorkPath].ToString(), Constants.CreateSchemas);
 			var view = new DataView(dt);
 			var distinct = view.ToTable(true, "schema_name");
 
-			using (var sw = new StreamWriter(path, false, Encoding.Default)) {
+			using (var sw = new StreamWriter(path, false, Encoding.Default))
+			{
 				sw.WriteUseDb();
 
 				foreach (var row in distinct.Rows.Cast<DataRow>()
-					.Where(row => !row[0].ToString().Equals(Constants.PgDefaultSchema))) 
+					.Where(row => !row[0].ToString().Equals(Constants.PgDefaultSchema)))
 				{
 					sw.WriteLine("CREATE SCHEMA [" + row[0] + "];");
 					sw.WriteLine("GO");
@@ -112,7 +118,8 @@ namespace ConvertPG2SS {
 		/// </summary>
 		/// <param name="dtTypes"></param>
 		/// <param name="dtSeq"></param>
-		private static void GenerateTypeScripts(DataTable dtTypes, DataTable dtSeq) {
+		private static void GenerateTypeScripts(DataTable dtTypes, DataTable dtSeq)
+		{
 			var createPath = Path.Combine(
 				_params[Parameters.OtherWorkPath].ToString(), Constants.CreateTypes);
 			var dropPath = Path.Combine(
@@ -121,7 +128,8 @@ namespace ConvertPG2SS {
 			StreamWriter swCreate = null;
 			StreamWriter swDrop = null;
 
-			try {
+			try
+			{
 				swCreate = new StreamWriter(createPath, false, Encoding.Default);
 				swDrop = new StreamWriter(dropPath, false, Encoding.Default);
 
@@ -130,9 +138,10 @@ namespace ConvertPG2SS {
 
 				// TODO: 2015-10-10: fix varchar bug -> shuold become varchar(max).
 				// Write CREATE TYPE statements.
-				foreach (DataRow row in dtTypes.Rows) {
-					var schema = row["schema_name"].ToString().Equals(Constants.PgDefaultSchema) 
-						? Constants.SsDefaultSchema 
+				foreach (DataRow row in dtTypes.Rows)
+				{
+					var schema = row["schema_name"].ToString().Equals(Constants.PgDefaultSchema)
+						? Constants.SsDefaultSchema
 						: row["schema_name"].ToString();
 
 					var typeName = "[" + schema + "].[" + row["type_name"] + "]";
@@ -141,7 +150,7 @@ namespace ConvertPG2SS {
 
 					var dataType = Postgres.SsDataType(row["regtype"].ToString());
 					swCreate.WriteLine(
-						"FROM [" + dataType + "]" + 
+						"FROM [" + dataType + "]" +
 						GenerateColumnDimDef(row, dataType) + ";");
 					swCreate.WriteLine();
 
@@ -149,7 +158,8 @@ namespace ConvertPG2SS {
 				}
 
 				// Write CREATE SEQUENCE statements.
-				foreach (DataRow row in dtSeq.Rows) {
+				foreach (DataRow row in dtSeq.Rows)
+				{
 					var schema = row["schema_name"].ToString().Equals(Constants.PgDefaultSchema)
 						? Constants.SsDefaultSchema
 						: row["schema_name"].ToString();
@@ -175,7 +185,7 @@ namespace ConvertPG2SS {
 
 					swCreate.WriteLine(";");
 					swCreate.WriteLine();
-					
+
 					swDrop.WriteLine("DROP SEQUENCE " + seqName + ";");
 				}
 
@@ -185,11 +195,11 @@ namespace ConvertPG2SS {
 			catch (Exception ex) {
 				_log.WriteEx('E', Constants.LogTsType, ex);
 			}
-			finally {
+			finally
+			{
 				swCreate?.Dispose();
 				swDrop?.Dispose();
 			}
-
 		}
 
 		/// <summary>
@@ -197,7 +207,8 @@ namespace ConvertPG2SS {
 		/// </summary>
 		/// <param name="dt">DataTable with all the PostgreSQL schema/table/column info.</param>
 		/// <param name="conn">PG connection.</param>
-		private static void GenerateTableScripts(DataTable dt, NpgsqlConnection conn) {
+		private static void GenerateTableScripts(DataTable dt, NpgsqlConnection conn)
+		{
 			var createPath = Path.Combine(
 				_params[Parameters.OtherWorkPath].ToString(), Constants.CreateTables);
 			var dropPath = Path.Combine(
@@ -209,7 +220,8 @@ namespace ConvertPG2SS {
 			StreamWriter swDrop = null;
 			StreamWriter swTrunc = null;
 
-			try {
+			try
+			{
 				swCreate = new StreamWriter(createPath, false, Encoding.Default);
 				swDrop = new StreamWriter(dropPath, false, Encoding.Default);
 				swTrunc = new StreamWriter(truncPath, false, Encoding.Default);
@@ -223,13 +235,16 @@ namespace ConvertPG2SS {
 				var savedTable = "";
 				var defaults = new List<string[]>();
 
-				foreach (DataRow row in dt.Rows) {
+				foreach (DataRow row in dt.Rows)
+				{
 					var schema = row["schema_name"].ToString();
 					var table = row["table_name"].ToString();
 
 					// Schema or table changed: close table defenition.
-					if (!savedSchema.Equals(schema) || !savedTable.Equals(table)) {
-						if (!string.IsNullOrEmpty(savedTable)) {
+					if (!savedSchema.Equals(schema) || !savedTable.Equals(table))
+					{
+						if (!string.IsNullOrEmpty(savedTable))
+						{
 							CloseCreateTable(swCreate, defaults);
 							defaults.Clear();
 						}
@@ -261,7 +276,8 @@ namespace ConvertPG2SS {
 			catch (Exception ex) {
 				_log.WriteEx('E', Constants.LogTsType, ex);
 			}
-			finally {
+			finally
+			{
 				swCreate?.Dispose();
 				swDrop?.Dispose();
 				swTrunc?.Dispose();
@@ -277,7 +293,7 @@ namespace ConvertPG2SS {
 		private static void GenerateColumn(
 			this TextWriter tw,
 			DataRow row,
-			out string[] def) 
+			out string[] def)
 		{
 			var sb = new StringBuilder();
 			var fmt = "";
@@ -289,7 +305,8 @@ namespace ConvertPG2SS {
 			else aryDim = 0;
 
 			if (aryDim <= 1) aryDim = 0;
-			if (aryDim > 0) {
+			if (aryDim > 0)
+			{
 				if (aryDim > 99) fmt = "D3";
 				else if (aryDim > 9) fmt = "D2";
 				else fmt = "D1";
@@ -302,7 +319,8 @@ namespace ConvertPG2SS {
 			if (string.IsNullOrEmpty(dataType)) dataType = regType;
 
 			// Generate column definition.
-			for (var i = 0; i <= aryDim; i++) {
+			for (var i = 0; i <= aryDim; i++)
+			{
 				if (aryDim > 0) ext = (i + 1).ToString(fmt);
 				if (i > 0) tw.WriteLine(",");
 
@@ -311,9 +329,11 @@ namespace ConvertPG2SS {
 
 				sb.Append(GenerateColumnDimDef(row, dataType));
 
-				if (i == 0) {
+				if (i == 0)
+				{
 					// Store information to generate default and comment definitions later.
-					if (row["default_val"] != DBNull.Value || row["comment"] != DBNull.Value) {
+					if (row["default_val"] != DBNull.Value || row["comment"] != DBNull.Value)
+					{
 						tmpDef[SchemaName] = row["schema_name"].ToString();
 						tmpDef[TableName] = row["table_name"].ToString();
 						tmpDef[ColumnName] = row["column_name"] + ext;
@@ -338,34 +358,39 @@ namespace ConvertPG2SS {
 		/// <param name="row"></param>
 		/// <param name="dataType"></param>
 		/// <returns></returns>
-		private static string GenerateColumnDimDef(DataRow row, string dataType) {
+		private static string GenerateColumnDimDef(DataRow row, string dataType)
+		{
 			var sb = new StringBuilder();
 
-			if (row["numeric_precision"] != DBNull.Value) {
+			if (row["numeric_precision"] != DBNull.Value)
+			{
 				// Number field has precision and scale.
-				if (dataType == "numeric" || dataType == "dec" || dataType == "decimal") {
+				if (dataType == "numeric" || dataType == "dec" || dataType == "decimal")
+				{
 					sb.Append("(" + ((int) row["numeric_precision"]).ToString().Trim());
 					var scale = (int) row["numeric_scale"];
 					if (scale > 0) sb.Append("," + scale);
 					sb.Append(")");
 				}
 			}
-			else {
+			else
+			{
 				// Text field has a size.
-				if (row["max_char_size"] != DBNull.Value) {
+				if (row["max_char_size"] != DBNull.Value)
+				{
 					var charSize = (int) row["max_char_size"];
-					if (charSize > 0) {
+					if (charSize > 0)
+					{
 						sb.Append("(");
-						sb.Append(((int)row["max_char_size"]).ToString().Trim());
+						sb.Append(((int) row["max_char_size"]).ToString().Trim());
 						sb.Append(")");
 					}
-					else {
-						sb.Append("(max)");
-					}
+					else
+					{ sb.Append("(max)"); }
 				}
 			}
 
-			if (((bool)row["notnull"])) sb.Append(" NOT NULL");
+			if (((bool) row["notnull"])) sb.Append(" NOT NULL");
 			else sb.Append(" NULL");
 
 			return sb.ToString();
@@ -376,7 +401,8 @@ namespace ConvertPG2SS {
 		///     CREATE TABLE statements. 
 		/// </summary>
 		/// <param name="tw"></param>
-		private static void PrepCreateTable(this TextWriter tw) {
+		private static void PrepCreateTable(this TextWriter tw)
+		{
 			tw.WriteLine("SET ANSI_NULLS ON");
 			tw.WriteLine("GO");
 			tw.WriteLine("SET QUOTED_IDENTIFIER ON");
@@ -390,9 +416,9 @@ namespace ConvertPG2SS {
 		/// <param name="schema"></param>
 		/// <param name="table"></param>
 		private static void OpenCreateTable(
-			this TextWriter tw, 
-			string schema, 
-			string table) 
+			this TextWriter tw,
+			string schema,
+			string table)
 		{
 			tw.WriteLine("SET ANSI_PADDING ON");
 			tw.WriteLine("GO");
@@ -407,8 +433,8 @@ namespace ConvertPG2SS {
 		/// <param name="tw"></param>
 		/// <param name="defaults"></param>
 		private static void CloseCreateTable(
-			this TextWriter tw,  
-			IReadOnlyCollection<string[]> defaults) 
+			this TextWriter tw,
+			IReadOnlyCollection<string[]> defaults)
 		{
 			tw.WriteLine();
 			tw.WriteLine(") ON [PRIMARY]");
@@ -427,7 +453,8 @@ namespace ConvertPG2SS {
 		/// <param name="tw"></param>
 		/// <param name="schema"></param>
 		/// <param name="table"></param>
-		private static void WriteDropCommand(this TextWriter tw, string schema, string table) {
+		private static void WriteDropCommand(this TextWriter tw, string schema, string table)
+		{
 			var qual = "[" + schema + "].[" + table + "]";
 			tw.Write("IF OBJECT_ID ('" + qual + "') ");
 			tw.WriteLine("IS NOT NULL DROP TABLE " + qual + ";");
@@ -439,9 +466,10 @@ namespace ConvertPG2SS {
 		/// <param name="tw"></param>
 		/// <param name="schema"></param>
 		/// <param name="table"></param>
-		private static void WriteTruncateCommand(this TextWriter tw, string schema, string table) {
+		private static void WriteTruncateCommand(this TextWriter tw, string schema, string table)
+		{
 			var qual = "[" + schema + "].[" + table + "]";
-			tw.WriteLine("TRUNCATE TABLE " + qual+ ";");
+			tw.WriteLine("TRUNCATE TABLE " + qual + ";");
 		}
 
 		/// <summary>
@@ -449,16 +477,19 @@ namespace ConvertPG2SS {
 		/// </summary>
 		/// <param name="tw"></param>
 		/// <param name="defaults"></param>
-		private static void WriteDefaults(this TextWriter tw, IEnumerable<string[]> defaults) {
+		private static void WriteDefaults(this TextWriter tw, IEnumerable<string[]> defaults)
+		{
 			var first = true;
 
-			foreach (var def in defaults) {
+			foreach (var def in defaults)
+			{
 				if (string.IsNullOrEmpty(def[DefaultValue])) continue;
 
 				var defVal = Postgres.SsDefaultValue(def[SchemaName], def[DefaultValue]);
 				if (string.IsNullOrEmpty(defVal)) continue;
 
-				if (first) {
+				if (first)
+				{
 					tw.WriteLine("SET ANSI_PADDING OFF");
 					tw.WriteLine("GO");
 					tw.WriteLine();
@@ -481,9 +512,10 @@ namespace ConvertPG2SS {
 		/// <param name="defaults"></param>
 		private static void WriteColumnComments(
 			this TextWriter tw,
-			IEnumerable<string[]> defaults) 
+			IEnumerable<string[]> defaults)
 		{
-			foreach (var def in defaults.Where(def => !string.IsNullOrEmpty(def[Comment]))) {
+			foreach (var def in defaults.Where(def => !string.IsNullOrEmpty(def[Comment])))
+			{
 				tw.Write("EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'");
 				tw.WriteLine(General.SanitizeString(def[Comment]) + "' ,");
 				tw.Write("@level0type=N'SCHEMA',@level0name=N'");
@@ -502,7 +534,8 @@ namespace ConvertPG2SS {
 		/// </summary>
 		/// <param name="tw"></param>
 		/// <param name="conn"></param>
-		private static void WriteTableDesc(this TextWriter tw, NpgsqlConnection conn) {
+		private static void WriteTableDesc(this TextWriter tw, NpgsqlConnection conn)
+		{
 			const string sql =
 				@"SELECT n.nspname AS schema_name, c.relname AS table_name, d.description
 				FROM	pg_description d
@@ -512,9 +545,12 @@ namespace ConvertPG2SS {
 						AND n.nspname NOT IN('pg_catalog', 'information_schema', 'public')
 				ORDER	BY n.nspname ASC, c.relname ASC";
 
-			using (var cmd = new NpgsqlCommand(sql, conn)) {
-				using (var reader = cmd.ExecuteReader()) {
-					while (reader.Read()) {
+			using (var cmd = new NpgsqlCommand(sql, conn))
+			{
+				using (var reader = cmd.ExecuteReader())
+				{
+					while (reader.Read())
+					{
 						var comment = reader["description"].ToString().Trim();
 						if (string.IsNullOrEmpty(comment)) continue;
 
@@ -536,7 +572,8 @@ namespace ConvertPG2SS {
 		///     Write the different create indeces/key constraint statements. 
 		/// </summary>
 		/// <param name="conn"></param>
-		private static void GenerateBuildIndexes(NpgsqlConnection conn) {
+		private static void GenerateBuildIndexes(NpgsqlConnection conn)
+		{
 			var indexPath = Path.Combine(
 				_params[Parameters.OtherWorkPath].ToString(), Constants.CreateIndexesEtAl);
 
@@ -561,8 +598,9 @@ namespace ConvertPG2SS {
 				WHERE  n.nspname NOT IN('pg_toast', 'pg_catalog', 'information_schema', 'public')
 				ORDER  BY n.nspname ASC, c.relname ASC, d.relname ASC, a.attnum";
 
-			using (var cmd = new NpgsqlCommand(sql, conn)) 
-			using (var sw = new StreamWriter(indexPath, false, Encoding.Default)) {
+			using (var cmd = new NpgsqlCommand(sql, conn))
+			using (var sw = new StreamWriter(indexPath, false, Encoding.Default))
+			{
 				sw.WriteBeginTrans();
 
 				var savedSchema = "";
@@ -570,38 +608,36 @@ namespace ConvertPG2SS {
 				var savedIndex = "";
 				var savedType = ' ';
 
-				using (var reader = cmd.ExecuteReader()) {
+				using (var reader = cmd.ExecuteReader())
+				{
 					var sb = new StringBuilder();
 
 					// TODO: 2015-09-25: handle ASC, DESC, NULL FIRST options.
-					while (reader.Read()) {
+					while (reader.Read())
+					{
 						var schema = reader["schema_name"].ToString();
 						var table = reader["table_name"].ToString();
 						var index = reader["index_name"].ToString();
 
 						// Schema, table or index changed: close index defenition.
 						if (!savedSchema.Equals(schema) || !savedTable.Equals(table)
-							|| !savedIndex.Equals(index)) 
+						    || !savedIndex.Equals(index))
 						{
-							if (sb.Length > 0) 
+							if (sb.Length > 0)
 								sw.WriteIndex
-									(savedSchema, 
-									savedTable,
-									savedIndex,
-									savedType,
-									sb.ToString());
+									(savedSchema,
+										savedTable,
+										savedIndex,
+										savedType,
+										sb.ToString());
 							sb.Clear();
 
 							savedSchema = schema;
 							savedTable = table;
 							savedIndex = index;
 
-							if ((bool) reader["indisprimary"]) {
-								savedType = 'P';
-							}
-							else if ((bool) reader["indisunique"]) {
-								savedType = 'U';
-							}
+							if ((bool) reader["indisprimary"]) { savedType = 'P'; }
+							else if ((bool) reader["indisunique"]) { savedType = 'U'; }
 							else savedType = 'I';
 						}
 						else sb.Append(", ");
@@ -611,10 +647,10 @@ namespace ConvertPG2SS {
 
 					if (sb.Length > 0)
 						sw.WriteIndex(
-							savedSchema, 
-							savedTable, 
-							savedIndex, 
-							savedType, 
+							savedSchema,
+							savedTable,
+							savedIndex,
+							savedType,
 							sb.ToString());
 
 					sw.WriteCommitTrans();
@@ -632,16 +668,17 @@ namespace ConvertPG2SS {
 		/// <param name="typ"></param>
 		/// <param name="columns"></param>
 		private static void WriteIndex(
-			this TextWriter tw, 
-			string schema, 
+			this TextWriter tw,
+			string schema,
 			string table,
 			string name,
-			char typ, 
-			string columns) 
+			char typ,
+			string columns)
 		{
 			var qualTable = "[" + schema + "].[" + table + "]";
 
-			switch (typ) {
+			switch (typ)
+			{
 				case 'P':
 					tw.WriteLine("ALTER TABLE " + qualTable);
 					tw.Write("ADD CONSTRAINT PK_" + table + " PRIMARY KEY CLUSTERED (");
@@ -655,7 +692,7 @@ namespace ConvertPG2SS {
 						"WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, ");
 					tw.WriteLine(
 						"SORT_IN_TEMPDB = OFF, DROP_EXISTING = OFF, ONLINE = OFF, ");
-						tw.WriteLine("ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON)");
+					tw.WriteLine("ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON)");
 					break;
 				case 'U':
 					tw.WriteLine("ALTER TABLE " + qualTable);
@@ -664,7 +701,7 @@ namespace ConvertPG2SS {
 				default:
 					throw new NotImplementedException();
 			}
-			
+
 			tw.WriteLine("GO");
 			tw.WriteLine();
 		}
@@ -673,16 +710,16 @@ namespace ConvertPG2SS {
 		/// 
 		/// </summary>
 		/// <param name="dt"></param>
-		private static void GenerateFkConstraints(DataTable dt) {
+		private static void GenerateFkConstraints(DataTable dt)
+		{
 			var path = Path.Combine(
 				_params[Parameters.OtherWorkPath].ToString(), Constants.CreateForeignKeys);
 
-			using (var sw = new StreamWriter(path, false, Encoding.Default)) {
+			using (var sw = new StreamWriter(path, false, Encoding.Default))
+			{
 				sw.WriteBeginTrans();
 
-				foreach (DataRow row in dt.Rows) {
-					sw.WriteFkStatement(row);
-				}
+				foreach (DataRow row in dt.Rows) { sw.WriteFkStatement(row); }
 				sw.WriteCommitTrans();
 			}
 		}
@@ -692,7 +729,8 @@ namespace ConvertPG2SS {
 		/// </summary>
 		/// <param name="tw"></param>
 		/// <param name="row"></param>
-		private static void WriteFkStatement(this TextWriter tw, DataRow row) {
+		private static void WriteFkStatement(this TextWriter tw, DataRow row)
+		{
 			// TODO: 2015-10-12: there's an issue when the column is also part of the PK.
 			var fkName = row["fk_name"].ToString();
 			var p = fkName.IndexOf("_fkey", StringComparison.Ordinal);
@@ -717,12 +755,14 @@ namespace ConvertPG2SS {
 		/// <param name="row"></param>
 		/// <param name="fkTable"></param>
 		/// <returns></returns>
-		private static string GetFkColumns(DataRow row, bool fkTable) {
+		private static string GetFkColumns(DataRow row, bool fkTable)
+		{
 			var sb = new StringBuilder();
 
 			var key = fkTable ? "fkey" : "key";
 
-			for (var i = 0; i < Constants.PgMaxFkeys; i++) {
+			for (var i = 0; i < Constants.PgMaxFkeys; i++)
+			{
 				var col = row[key + (i + 1).ToString("D2")].ToString();
 				if (i > 0 && !string.IsNullOrEmpty(col)) sb.Append(", ");
 				if (!string.IsNullOrEmpty(col)) sb.Append("[" + col + "]");
@@ -735,16 +775,19 @@ namespace ConvertPG2SS {
 		/// 
 		/// </summary>
 		/// <param name="tw"></param>
-		private static void WriteUseDb(this TextWriter tw) {
+		private static void WriteUseDb(this TextWriter tw)
+		{
 			tw.WriteLine("USE " + _params[Parameters.MsSqlDatabase] + ";");
 			tw.WriteLine("GO");
 			tw.WriteLine();
 		}
+
 		/// <summary>
 		///     Write begin transaction.
 		/// </summary>
 		/// <param name="tw"></param>
-		private static void WriteBeginTrans(this TextWriter tw) {
+		private static void WriteBeginTrans(this TextWriter tw)
+		{
 			tw.WriteUseDb();
 			tw.WriteLine("BEGIN TRANSACTION;");
 			tw.WriteLine();
@@ -754,7 +797,8 @@ namespace ConvertPG2SS {
 		///     Write commit transaction.
 		/// </summary>
 		/// <param name="tw"></param>
-		private static void WriteCommitTrans(this TextWriter tw) {
+		private static void WriteCommitTrans(this TextWriter tw)
+		{
 			tw.WriteLine();
 			tw.WriteLine("COMMIT TRANSACTION;");
 		}

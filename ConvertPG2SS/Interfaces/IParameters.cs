@@ -28,8 +28,10 @@
 using System;
 using System.Collections.Generic;
 
-namespace ConvertPG2SS.Interfaces {
-	internal interface IParameters : IDisposable {
+namespace ConvertPG2SS.Interfaces
+{
+	internal interface IParameters : IDisposable
+	{
 		void Reload();
 		object this[string key] { get; }
 		bool Contains(string key);

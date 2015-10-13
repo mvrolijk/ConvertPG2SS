@@ -32,20 +32,25 @@ using System.Windows;
 using ConvertPG2SS.Common;
 using ConvertPG2SS.Helpers;
 
-namespace Security {
+namespace Security
+{
 	/// <summary>
 	/// Interaction logic for MainWindow.xaml
 	/// </summary>
-	public partial class MainWindow {
-		readonly CryptoAes _crypto;
-		public MainWindow() {
+	public partial class MainWindow
+	{
+		private readonly CryptoAes _crypto;
+
+		public MainWindow()
+		{
 			InitializeComponent();
 
 			// Retrieve the AES key & vector
 			var key = new byte[Constants.KeySize];
 			var vector = new byte[Constants.VectorSize];
 
-			using (var writer = new BinaryReader(File.Open(Constants.AesKeyFile, FileMode.Open))) {
+			using (var writer = new BinaryReader(File.Open(Constants.AesKeyFile, FileMode.Open)))
+			{
 				writer.Read(key, 0, Constants.KeySize);
 				writer.Read(vector, 0, Constants.VectorSize);
 			}
@@ -53,28 +58,33 @@ namespace Security {
 			_crypto = new CryptoAes(key, vector);
 		}
 
-		private void EncryptButtonClick(object sender, RoutedEventArgs e) {
+		private void EncryptButtonClick(object sender, RoutedEventArgs e)
+		{
 			if (FromTextBox.Text.Length == 0) return;
 			ResultTextBox.Text = _crypto.EncryptToString(
-				FromTextBox.Text, 
+				FromTextBox.Text,
 				RadioHex.IsChecked != null && (bool) RadioHex.IsChecked);
 		}
 
-		private void DecryptButtonClick(object sender, RoutedEventArgs e) {
+		private void DecryptButtonClick(object sender, RoutedEventArgs e)
+		{
 			if (FromTextBox.Text.Length == 0) return;
-			try {
+			try
+			{
 				ResultTextBox.Text = _crypto.DecryptString(
-					FromTextBox.Text, 
-					RadioHex.IsChecked != null && (bool)RadioHex.IsChecked);
+					FromTextBox.Text,
+					RadioHex.IsChecked != null && (bool) RadioHex.IsChecked);
 			}
-			catch (Exception ex) {
+			catch (Exception ex)
+			{
 				ResultTextBox.Text = "";
 				MessageBox.Show(ex.Message, "Error", MessageBoxButton.OK);
 				Close();
 			}
 		}
 
-		private void CloseButtonClick(object sender, RoutedEventArgs e) {
+		private void CloseButtonClick(object sender, RoutedEventArgs e)
+		{
 			Close();
 		}
 	}

@@ -34,14 +34,17 @@ using ConvertPG2SS.Interfaces;
 using NLog;
 using NLog.Targets;
 
-namespace ConvertPG2SS.Services {
+namespace ConvertPG2SS.Services
+{
 	/// <summary>
 	///     Wraps a Logger instance.
 	/// </summary>
-	class BLoggerService : Logger, IBLogger {
+	internal class BLoggerService : Logger, IBLogger
+	{
 		private const string Bullets = "*-········";
 #if DEBUG
-		private static readonly string FileName = "${basedir}/logs/" + Constants.AppName + ".log";
+		private static readonly string FileName = "${basedir}/logs/" + Constants.AppName +
+		                                          ".log";
 #else
 		private static readonly string FileName =
 			"${basedir}/logs/" + Constants.AppName + "_" +
@@ -53,15 +56,17 @@ namespace ConvertPG2SS.Services {
 		/// </summary>
 		private readonly Logger _logger;
 
-		public BLoggerService() {
-			try {
+		public BLoggerService()
+		{
+			try
+			{
 #if DEBUG
 				foreach (var rule in LogManager.Configuration.LoggingRules) {
 					rule.EnableLoggingForLevel(LogLevel.Trace);
 				}
 #endif
 				//_logger = LogManager.GetCurrentClassLogger();
-				var target = (FileTarget)LogManager.Configuration.FindTargetByName("logfile");
+				var target = (FileTarget) LogManager.Configuration.FindTargetByName("logfile");
 				//target.FileName = "${basedir}/logs/" + Constants.AppName + ".log";
 				target.FileName = FileName;
 #if DEBUG
@@ -70,7 +75,8 @@ namespace ConvertPG2SS.Services {
 				LogManager.ReconfigExistingLoggers();
 				_logger = LogManager.GetCurrentClassLogger();
 			}
-			catch (NullReferenceException nrex) {
+			catch (NullReferenceException nrex)
+			{
 				Console.WriteLine(nrex.ToString());
 				Environment.Exit(1);
 			}
@@ -101,7 +107,7 @@ namespace ConvertPG2SS.Services {
 			int tab = 0,
 			[CallerMemberName] string memberName = "",
 			[CallerFilePath] string filePath = "",
-			[CallerLineNumber] int lineNumber = 0) 
+			[CallerLineNumber] int lineNumber = 0)
 		{
 			_write(level, ts, fmt, text, tab, memberName, filePath, lineNumber);
 		}
@@ -124,7 +130,7 @@ namespace ConvertPG2SS.Services {
 			int tab = 0,
 			[CallerMemberName] string memberName = "",
 			[CallerFilePath] string filePath = "",
-			[CallerLineNumber] int lineNumber = 0) 
+			[CallerLineNumber] int lineNumber = 0)
 		{
 			_write(level, DateTime.Now, fmt, text, tab, memberName, filePath, lineNumber);
 		}
@@ -144,7 +150,7 @@ namespace ConvertPG2SS.Services {
 			Exception ex,
 			[CallerMemberName] string memberName = "",
 			[CallerFilePath] string filePath = "",
-			[CallerLineNumber] int lineNumber = 0) 
+			[CallerLineNumber] int lineNumber = 0)
 		{
 			_write(
 				level,
@@ -183,35 +189,43 @@ namespace ConvertPG2SS.Services {
 		/// <param name="args">Optional array of objects.</param>
 
 		#region WriteLog methods
-		public new void Trace(string format, params object[] args) {
+		public new void Trace(string format, params object[] args)
+		{
 			if (_logger.IsTraceEnabled) WriteLog(LogLevel.Trace, format, args);
 		}
 
-		public new void Debug(string format, params object[] args) {
+		public new void Debug(string format, params object[] args)
+		{
 			if (_logger.IsDebugEnabled) WriteLog(LogLevel.Debug, format, args);
 		}
 
-		public new void Info(string format, params object[] args) {
+		public new void Info(string format, params object[] args)
+		{
 			if (_logger.IsInfoEnabled) WriteLog(LogLevel.Info, format, args);
 		}
 
-		public new void Warn(string format, params object[] args) {
+		public new void Warn(string format, params object[] args)
+		{
 			if (_logger.IsWarnEnabled) WriteLog(LogLevel.Warn, format, args);
 		}
 
-		public new void Error(string format, params object[] args) {
+		public new void Error(string format, params object[] args)
+		{
 			if (_logger.IsErrorEnabled) WriteLog(LogLevel.Error, format, args);
 		}
 
-		public new void Fatal(string format, params object[] args) {
+		public new void Fatal(string format, params object[] args)
+		{
 			if (_logger.IsFatalEnabled) WriteLog(LogLevel.Fatal, format, args);
 		}
 
-		public new void ErrorException(string format, Exception ex) {
+		public new void ErrorException(string format, Exception ex)
+		{
 			if (_logger.IsErrorEnabled) WriteLogExc(LogLevel.Error, format, ex, null);
 		}
 
-		public new void FatalException(string format, Exception ex) {
+		public new void FatalException(string format, Exception ex)
+		{
 			if (_logger.IsFatalEnabled) WriteLogExc(LogLevel.Fatal, format, ex, null);
 		}
 
@@ -241,16 +255,19 @@ namespace ConvertPG2SS.Services {
 			int tab,
 			string method = "",
 			string filePath = "",
-			int lineNumber = 0) {
+			int lineNumber = 0)
+		{
 			var tabInd = new StringBuilder(32);
 			var dspMsg = new StringBuilder(256);
-			if (tab > 0 && tab <= 10) {
-				if (tab > 1) tabInd.Append(' ', (tab - 1) * 3);
+			if (tab > 0 && tab <= 10)
+			{
+				if (tab > 1) tabInd.Append(' ', (tab - 1)*3);
 				tabInd.Append(" " + Bullets.Substring(tab - 1, 1) + " ");
 			}
 
 			var fts = "";
-			switch (fmt) {
+			switch (fmt)
+			{
 				case 'Z':
 					fts = ts.ToString("HH':'mm':'ss.ffff ", CultureInfo.InvariantCulture);
 					break;
@@ -266,7 +283,8 @@ namespace ConvertPG2SS.Services {
 					break;
 			}
 
-			if (!string.IsNullOrEmpty(method)) {
+			if (!string.IsNullOrEmpty(method))
+			{
 				dspMsg.Append(fts + "[" + level + "] ");
 				dspMsg.Append(filePath + " - " + method + ": " + lineNumber + "\n");
 			}
@@ -297,34 +315,49 @@ namespace ConvertPG2SS.Services {
 			int tab = 0,
 			string memberName = "",
 			string filePath = "",
-			int lineNumber = 0) 
+			int lineNumber = 0)
 		{
 			string dspMsg;
 			if ((level.Equals('E') || level.Equals('F')) &&
-				!string.IsNullOrEmpty(memberName)) {
-				dspMsg = Format(level, ts, fmt, text, tab, memberName, filePath, lineNumber);
-			}
+			    !string.IsNullOrEmpty(memberName)) {
+				    dspMsg = Format(level, ts, fmt, text, tab, memberName, filePath, lineNumber);
+			    }
 			else dspMsg = Format(level, ts, fmt, text, tab);
 
-			switch (level) {
-				case 'T': _logger.Trace(dspMsg); break;
-				case 'D': _logger.Debug(dspMsg); break;
-				case 'I': _logger.Info(dspMsg); break;
-				case 'W': _logger.Warn(dspMsg); break;
-				case 'E': _logger.Error(dspMsg); break;
-				case 'F': _logger.Fatal(dspMsg); break;
+			switch (level)
+			{
+				case 'T':
+					_logger.Trace(dspMsg);
+					break;
+				case 'D':
+					_logger.Debug(dspMsg);
+					break;
+				case 'I':
+					_logger.Info(dspMsg);
+					break;
+				case 'W':
+					_logger.Warn(dspMsg);
+					break;
+				case 'E':
+					_logger.Error(dspMsg);
+					break;
+				case 'F':
+					_logger.Fatal(dspMsg);
+					break;
 			}
 		}
 
-		private void WriteLog(LogLevel level, string format, params object[] args) {
+		private void WriteLog(LogLevel level, string format, params object[] args)
+		{
 			var le = new LogEventInfo(level, _logger.Name, null, format, args);
-			_logger.Log(typeof(BLoggerService), le);
+			_logger.Log(typeof (BLoggerService), le);
 		}
 
 		private void WriteLogExc(LogLevel level, string format,
-			Exception ex, params object[] args) {
+			Exception ex, params object[] args)
+		{
 			var le = new LogEventInfo(level, _logger.Name, null, format, args, ex);
-			_logger.Log(typeof(BLoggerService), le);
+			_logger.Log(typeof (BLoggerService), le);
 		}
 	}
 }

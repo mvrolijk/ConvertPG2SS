@@ -37,22 +37,25 @@ using ConvertPG2SS.Helpers;
 using ConvertPG2SS.Interfaces;
 using Npgsql;
 
-namespace ConvertPG2SS {
-	static class ProcessPgBulk {
+namespace ConvertPG2SS
+{
+	internal static class ProcessPgBulk
+	{
 		private static IBLogger _log;
 		private static IParameters _params;
 
-		internal static void Do() {
+		internal static void Do()
+		{
 			_log = Program.GetInstance<IBLogger>();
 			_params = Program.GetInstance<IParameters>();
 
-			var frmConn = (NpgsqlConnection)_params[Constants.PgConnection];
-			var tblDict = ((Dictionary<string, DataTable>)_params[Constants.PgTables]);
+			var frmConn = (NpgsqlConnection) _params[Constants.PgConnection];
+			var tblDict = ((Dictionary<string, DataTable>) _params[Constants.PgTables]);
 
 			var dt = tblDict[Constants.PgSchemaTable];
 			var view = new DataView(dt);
 			var tables = view.ToTable(true, "schema_name", "table_name");
-			
+
 			CreateBulkFile(tables);
 			if (!bool.Parse(_params[Parameters.PostgresProcessBulk].ToString())) return;
 
@@ -63,18 +66,21 @@ namespace ConvertPG2SS {
 		/// 
 		/// </summary>
 		/// <param name="tables"></param>
-		private static void CreateBulkFile(DataTable tables) {
+		private static void CreateBulkFile(DataTable tables)
+		{
 			var path = Path.Combine(
 				_params[Parameters.OtherWorkPath].ToString(), Constants.CreateBulkCopy);
 
-			using (var sw = new StreamWriter(path, false, Encoding.Default)) {
+			using (var sw = new StreamWriter(path, false, Encoding.Default))
+			{
 				sw.WriteLine("USE " + _params[Parameters.MsSqlDatabase] + ";");
 				sw.WriteLine("GO");
 				sw.WriteLine();
 				sw.WriteLine("BEGIN TRANSACTION;");
 				sw.WriteLine();
 
-				foreach (DataRow row in tables.Rows) {
+				foreach (DataRow row in tables.Rows)
+				{
 					var schema = row["schema_name"].ToString();
 					var table = row["table_name"].ToString();
 
@@ -96,7 +102,7 @@ namespace ConvertPG2SS {
 		/// <param name="tables"></param>
 		/// <param name="conn"></param>
 		private static void CreateImportFiles(
-			DataTable tables, 
+			DataTable tables,
 			NpgsqlConnection conn)
 		{
 			if (tables.Rows.Count == 0) return;
@@ -105,22 +111,21 @@ namespace ConvertPG2SS {
 			_log.Write('I', Constants.LogTsType, "Generating import files:");
 			long totalRecCount = 0;
 
-			foreach (DataRow row in tables.Rows) {
+			foreach (DataRow row in tables.Rows)
+			{
 				var schema = row["schema_name"].ToString();
 				var table = row["table_name"].ToString();
 
 				using (var sw = new StreamWriter(
-						ImportFile(schema, table),
-						false,
-						Encoding.Default)) {
-					totalRecCount += sw.CreateImportFile(schema, table, conn);
-				}
+					ImportFile(schema, table),
+					false,
+					Encoding.Default)) { totalRecCount += sw.CreateImportFile(schema, table, conn); }
 			}
 
 			_log.Info("");
 			_log.Write(
-				'I', 
-				Constants.LogTsType, 
+				'I',
+				Constants.LogTsType,
 				string.Format(
 					CultureInfo.InvariantCulture,
 					"Total records processed: {0,13:n0}",
@@ -135,21 +140,23 @@ namespace ConvertPG2SS {
 		/// <param name="table"></param>
 		/// <param name="conn"></param>
 		private static int CreateImportFile(
-			this TextWriter sw, 
-			string schema, 
-			string table, 
-			NpgsqlConnection conn) 
+			this TextWriter sw,
+			string schema,
+			string table,
+			NpgsqlConnection conn)
 		{
 			var limit = int.Parse(_params[Parameters.PostgresLimit].ToString());
 			string sql;
 
-			if (limit > 0) {
+			if (limit > 0)
+			{
 				sql = string.Format(
 					CultureInfo.InvariantCulture,
 					"SELECT * FROM {0}.{1} LIMIT {2}",
 					schema, table, limit);
 			}
-			else {
+			else
+			{
 				sql = string.Format(
 					CultureInfo.InvariantCulture,
 					"SELECT * FROM {0}.{1}",
@@ -161,18 +168,20 @@ namespace ConvertPG2SS {
 				"schema_name = '{0}' AND table_name = '{1}'",
 				schema, table);
 
-			var tblDict = ((Dictionary<string, DataTable>)_params[Constants.PgTables]);
+			var tblDict = ((Dictionary<string, DataTable>) _params[Constants.PgTables]);
 			var dt = tblDict[Constants.PgSchemaTable];
 			NpgsqlCommand cmd = null;
 			NpgsqlDataReader reader = null;
 			var colInfo = dt.Select(criteria, "column_index");
 			var recCount = 0;
 
-			try {
+			try
+			{
 				cmd = new NpgsqlCommand(sql, conn);
 				reader = cmd.ExecuteReader();
 
-				while (reader.Read()) {
+				while (reader.Read())
+				{
 					sw.WriteLine(ProcessRow(reader, colInfo));
 					recCount++;
 					//if (recCount%100000 == 0) {
@@ -184,7 +193,8 @@ namespace ConvertPG2SS {
 			catch (NpgsqlException ex) {
 				_log.WriteEx('F', Constants.LogTsType, ex);
 			}
-			finally {
+			finally
+			{
 				reader?.Dispose();
 				cmd?.Dispose();
 			}
@@ -213,22 +223,27 @@ namespace ConvertPG2SS {
 		/// <param name="reader"></param>
 		/// <param name="colInfo"></param>
 		/// <returns></returns>
-		private static string ProcessRow(IDataRecord reader, IReadOnlyList<DataRow> colInfo) {
+		private static string ProcessRow(IDataRecord reader, IReadOnlyList<DataRow> colInfo)
+		{
 			var sb = new StringBuilder();
 
-			for (var i = 0; i < reader.FieldCount; i++) {
+			for (var i = 0; i < reader.FieldCount; i++)
+			{
 				var column = colInfo[i];
 
 				if (i > 0) sb.Append(Constants.Tab);
 				var valueType = reader[i].GetType();
-				if (valueType.IsArray && valueType.Name != "Byte[]") {
+				if (valueType.IsArray && valueType.Name != "Byte[]")
+				{
 					var enumerable = reader[i] as IEnumerable;
-					if (enumerable == null) {
+					if (enumerable == null)
+					{
 						sb.Append(FormatColumnVal(reader[i], column));
 						continue;
 					}
 					var j = 0;
-					foreach (var val in enumerable) {
+					foreach (var val in enumerable)
+					{
 						// TODO: 2015-10-12: checl also for cases with ragged arrays.
 						if (j > 0) sb.Append(Constants.Tab);
 						sb.Append(FormatColumnVal(val, column));
@@ -246,22 +261,22 @@ namespace ConvertPG2SS {
 		/// <param name="obj"></param>
 		/// <param name="col"></param>
 		/// <returns></returns>
-		private static string FormatColumnVal(object obj, DataRow col) {
-			if (obj == DBNull.Value || obj == null) {
-				return (bool)col["notnull"] ? "NULL" :"";
-			}
-			switch (col["data_type"].ToString()) {
+		private static string FormatColumnVal(object obj, DataRow col)
+		{
+			if (obj == DBNull.Value || obj == null) { return (bool) col["notnull"] ? "NULL" : ""; }
+			switch (col["data_type"].ToString())
+			{
 				case "date":
 					return ((DateTime) obj).ToString(Constants.IsoDate);
 				case "timestamp without time zone":
 				case "timestamp with time zone":
 				case "timestamp without time zone[]":
 				case "timestamp with time zone[]":
-					return ((DateTime)obj).ToString(Constants.TimeStamp);
+					return ((DateTime) obj).ToString(Constants.TimeStamp);
 				case "boolean":
 					return (bool) obj ? "1" : "0";
 				case "bytea":
-					return General.ConvertBinToHex((byte[])obj);
+					return General.ConvertBinToHex((byte[]) obj);
 				default:
 					return obj.ToString();
 			}
@@ -273,9 +288,10 @@ namespace ConvertPG2SS {
 		/// <param name="schema"></param>
 		/// <param name="table"></param>
 		/// <returns></returns>
-		private static string ImportFile(string schema, string table) {
+		private static string ImportFile(string schema, string table)
+		{
 			return Path.Combine(
-			 _params[Parameters.OtherDumpPath].ToString(), schema + "_" + table + ".tsv");
+				_params[Parameters.OtherDumpPath].ToString(), schema + "_" + table + ".tsv");
 		}
 	}
 }

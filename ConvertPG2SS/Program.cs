@@ -34,8 +34,10 @@ using ConvertPG2SS.Services;
 using NLog;
 using SimpleInjector;
 
-namespace ConvertPG2SS {
-	class Program {
+namespace ConvertPG2SS
+{
+	internal class Program
+	{
 		private static Container _container;
 		private static IBLogger _log;
 		private static IParameters _param;
@@ -46,11 +48,13 @@ namespace ConvertPG2SS {
 		/// <typeparam name="TService"></typeparam>
 		/// <returns></returns>
 		[DebuggerStepThrough]
-		internal static TService GetInstance<TService>() where TService : class {
+		internal static TService GetInstance<TService>() where TService : class
+		{
 			return _container.GetInstance<TService>();
 		}
 
-		static void Main() {
+		private static void Main()
+		{
 			Bootstrap();
 			_log = GetInstance<IBLogger>();
 
@@ -62,11 +66,10 @@ namespace ConvertPG2SS {
 #if DEBUG
 			_param.WriteParametersToLog();
 #endif
-			if (General.CheckParams(_param, _log)) {
+			if (General.CheckParams(_param, _log))
+			{
 				if (bool.Parse(_param[Parameters.OtherPg2Ss].ToString()))
-					if (ProcessPgSchema.Do()) {
-						ProcessPgBulk.Do();
-					}				
+					if (ProcessPgSchema.Do()) { ProcessPgBulk.Do(); }
 			}
 
 			_param.Dispose();
@@ -81,7 +84,8 @@ namespace ConvertPG2SS {
 		/// <summary>
 		///     Create the Simple Injector Container objects.
 		/// </summary>
-		private static void Bootstrap() {
+		private static void Bootstrap()
+		{
 			var container = new Container();
 
 			// Register types.

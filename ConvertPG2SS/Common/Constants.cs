@@ -25,15 +25,17 @@
 // <summary>Program wide constants</summary>
 //----------------------------------------------------------------------------------------
 
-namespace ConvertPG2SS.Common {
-	internal static class Constants {
+namespace ConvertPG2SS.Common
+{
+	internal static class Constants
+	{
 		public static string AppName => "ConvertPG2SS";
-		public static char   Tab => '\t';
+		public static char Tab => '\t';
 
 		// Security
 		public static string AesKeyFile => "aes.key";
-		public static int    KeySize => 32;
-		public static int    VectorSize => 16;
+		public static int KeySize => 32;
+		public static int VectorSize => 16;
 
 		// PostgreSQL
 		public static string PgConnection => "pg_conn";
@@ -43,7 +45,7 @@ namespace ConvertPG2SS.Common {
 		public static string PgSeqTable => "pg_seqtable";
 		public static string PgFkTable => "pg_fktable";
 		public static string PgDefaultSchema => "public";
-		public static int    PgMaxFkeys => 16;
+		public static int PgMaxFkeys => 16;
 
 		// MSSQL
 		public static string SsDefaultSchema => "dbo";

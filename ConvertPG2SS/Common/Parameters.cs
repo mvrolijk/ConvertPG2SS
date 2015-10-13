@@ -25,8 +25,10 @@
 // <summary>Parameters keys</summary>
 //----------------------------------------------------------------------------------------
 
-namespace ConvertPG2SS.Common {
-	internal static class Parameters {
+namespace ConvertPG2SS.Common
+{
+	internal static class Parameters
+	{
 		// Sections
 		public static string PgConnSection => "pgconnection";
 		public static string SsConnSection => "ssconnection";

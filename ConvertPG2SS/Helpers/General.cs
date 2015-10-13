@@ -31,12 +31,15 @@ using System.Text;
 using ConvertPG2SS.Common;
 using ConvertPG2SS.Interfaces;
 
-namespace ConvertPG2SS.Helpers {
-	public static class General {
+namespace ConvertPG2SS.Helpers
+{
+	public static class General
+	{
 		/// <summary>
 		///     Something went very wrong: abort.
 		/// </summary>
-		internal static void Abort(string msg, IBLogger log = null) {
+		internal static void Abort(string msg, IBLogger log = null)
+		{
 			log?.Write('F', 'T', "Program has aborted due to unrecoverable errors.");
 			Environment.Exit(1);
 		}
@@ -46,16 +49,19 @@ namespace ConvertPG2SS.Helpers {
 		/// 
 		/// </summary>
 		/// <returns></returns>
-		internal static bool CheckParams(IParameters prms, IBLogger log) {
+		internal static bool CheckParams(IParameters prms, IBLogger log)
+		{
 			var path = prms[Parameters.OtherWorkPath].ToString();
 
-			try {
+			try
+			{
 				if (!Directory.Exists(path)) Directory.CreateDirectory(path);
 
 				path = prms[Parameters.OtherDumpPath].ToString();
 				if (!Directory.Exists(path)) Directory.CreateDirectory(path);
 			}
-			catch (Exception ex) {
+			catch (Exception ex)
+			{
 				log.WriteEx('E', Constants.LogTsType, ex);
 				return false;
 			}
@@ -68,15 +74,18 @@ namespace ConvertPG2SS.Helpers {
 		/// </summary>
 		/// <param name="str"></param>
 		/// <returns></returns>
-		internal static string SanitizeString(string str) {
+		internal static string SanitizeString(string str)
+		{
 			if (string.IsNullOrEmpty(str)) return str;
 
 			var sb = new StringBuilder();
 
-			for (var i = 0; i < str.Length; i++) {
+			for (var i = 0; i < str.Length; i++)
+			{
 				var ch = str[i];
 
-				if (ch == '\'') {
+				if (ch == '\'')
+				{
 					var ch2 = i < str.Length - 1 ? str[i + 1] : ' ';
 					if (ch2 != '\'') sb.Append("\'\'");
 					continue;
@@ -92,8 +101,9 @@ namespace ConvertPG2SS.Helpers {
 		/// </summary>
 		/// <param name="ba"></param>
 		/// <returns></returns>
-		internal static string ConvertBinToHex(byte[] ba) {
-			var tempStr = new StringBuilder(ba.Length * 2 + 2);
+		internal static string ConvertBinToHex(byte[] ba)
+		{
+			var tempStr = new StringBuilder(ba.Length*2 + 2);
 			//tempStr.Append("0x");
 			foreach (var b in ba) tempStr.AppendFormat("{0:X2}", b);
 			return tempStr.ToString();
