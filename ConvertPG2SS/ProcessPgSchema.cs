@@ -717,9 +717,21 @@ namespace ConvertPG2SS
 
 			using (var sw = new StreamWriter(path, false, Encoding.Default))
 			{
+				var saveFkName = "";
+				var cnt = 0;
+
 				sw.WriteBeginTrans();
 
-				foreach (DataRow row in dt.Rows) { sw.WriteFkStatement(row); }
+				foreach (DataRow row in dt.Rows)
+				{
+					if (saveFkName != row["fk_name"].ToString())
+					{
+						saveFkName = row["fk_name"].ToString();
+						cnt = 0;
+					}
+					else cnt++;
+					sw.WriteFkStatement(row, cnt);
+				}
 				sw.WriteCommitTrans();
 			}
 		}
@@ -729,12 +741,13 @@ namespace ConvertPG2SS
 		/// </summary>
 		/// <param name="tw"></param>
 		/// <param name="row"></param>
-		private static void WriteFkStatement(this TextWriter tw, DataRow row)
+		/// <param name="cnt"></param>
+		private static void WriteFkStatement(this TextWriter tw, DataRow row, int cnt)
 		{
-			// TODO: 2015-10-12: there's an issue when the column is also part of the PK.
 			var fkName = row["fk_name"].ToString();
 			var p = fkName.IndexOf("_fkey", StringComparison.Ordinal);
 			if (p > 0) fkName = fkName.Substring(0, p);
+			if (cnt > 0) fkName += cnt.ToString();
 
 			tw.Write("ALTER TABLE [");
 			tw.WriteLine(row["schema_name"] + "].[" + row["table_name"] + "]");
@@ -743,8 +756,9 @@ namespace ConvertPG2SS
 			tw.Write(Constants.Tab + "REFERENCES [");
 			tw.Write(row["fk_schema"] + "].[" + row["fk_table"] + "] (");
 			tw.WriteLine(GetFkColumns(row, true) + ")");
-			tw.WriteLine(Constants.Tab + "ON DELETE CASCADE");
-			tw.WriteLine(Constants.Tab + "ON UPDATE CASCADE;");
+			// tw.WriteLine(Constants.Tab + "ON DELETE CASCADE");
+			// tw.WriteLine(Constants.Tab + "ON UPDATE CASCADE");
+			tw.WriteLine(";");
 			tw.WriteLine("GO");
 			tw.WriteLine();
 		}

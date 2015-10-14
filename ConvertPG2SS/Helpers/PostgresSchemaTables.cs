@@ -429,9 +429,15 @@ namespace ConvertPG2SS.Helpers
 		/// </summary>
 		private static void CreateFkTable()
 		{
+			var inclPublic = bool.Parse(_params[Parameters.PostgresIncludePublic].ToString());
+			var where = "";
+			if (!inclPublic) where = " AND ts.nspname <> 'public' ";
+
 			#region PostgreSQL query to retrieve foreign keys information from pg_catalog.
 
-			const string sql =
+			var sql =
+				string.Format(
+					CultureInfo.InvariantCulture,
 				@"SELECT pg_constraint.conname fk_name,
 						 ts.nspname schema_name, tt.relname table_name,
 						 os.nspname fk_schema, ot.relname fk_table,
@@ -504,7 +510,8 @@ namespace ConvertPG2SS.Helpers
 					JOIN pg_namespace as ts ON tt.relnamespace = ts.oid
 				JOIN pg_class as ot ON ot.oid = pg_constraint.confrelid
 					JOIN pg_namespace as os ON ot.relnamespace = os.oid
-			WHERE	pg_constraint.contype = 'f' ORDER BY 1";
+			WHERE	pg_constraint.contype = 'f' {0} ORDER BY 1",
+				where);
 
 			#endregion
 
