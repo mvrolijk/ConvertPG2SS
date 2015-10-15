@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.0.10] - 2015-10-15
+### Changed
+- Reworked the way the program generates default values.
+- Fixed (MAX) bug for user-defined types.
+- Fixed ASC or DESC inclusion in indeces where required.
+
 ## [0.0.9] - 2015-10-12
 ### Added
 - Foreign keys constraints

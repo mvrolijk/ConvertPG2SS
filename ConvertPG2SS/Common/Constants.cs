@@ -44,6 +44,7 @@ namespace ConvertPG2SS.Common
 		public static string PgTypeTable => "pg_typetable";
 		public static string PgSeqTable => "pg_seqtable";
 		public static string PgFkTable => "pg_fktable";
+		public static string PgCheckTable => "pg_checktable";
 		public static string PgDefaultSchema => "public";
 		public static int PgMaxFkeys => 16;
 

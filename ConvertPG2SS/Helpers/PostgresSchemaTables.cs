@@ -52,70 +52,69 @@ namespace ConvertPG2SS.Helpers
 			_log = Program.GetInstance<IBLogger>();
 			_params = Program.GetInstance<IParameters>();
 			_pgConn = (NpgsqlConnection) _params[Constants.PgConnection];
+			var inclPublic = bool.Parse(_params[Parameters.PostgresIncludePublic].ToString());
+			var inList = "'pg_catalog', 'information_schema'";
+			if (!inclPublic) inList += ", 'public'";
 
-			CreateSchemaTable();
+			CreateSchemaTable(inList);
 			CreateTypeTable();
-			CreateSequenceTable();
+			CreateSequenceTable(inList);
 			CreateFkTable();
+			CreateCheckTable(inList);
 		}
 
 		/// <summary>
 		/// 
 		/// </summary>
-		private static void CreateSchemaTable()
+		private static void CreateSchemaTable(string inList)
 		{
 			#region PostgreSQL query to retrieve coloumn information from pg_catalog.
-
-			var inclPublic = bool.Parse(_params[Parameters.PostgresIncludePublic].ToString());
-			var inList = "'pg_catalog', 'information_schema'";
-			if (!inclPublic) inList += ", 'public'";
-
 			var sql =
 				string.Format(
 					CultureInfo.InvariantCulture,
 					@"SELECT n.nspname AS schema_name, c.relname AS table_name,
-				a.attname AS column_name, a.attnum AS column_index, 
-				(a.atttypid::regtype)::text AS regtype, a.attnotnull AS notnull,
-				format_type(a.atttypid, a.atttypmod) AS data_type, a.attndims AS dims,
-				CASE
-					WHEN a.atttypid = ANY (ARRAY[1042::oid, 1043::oid, 1015::oid]) THEN
-						CASE 
-							WHEN a.atttypmod > 0 THEN a.atttypmod - 4
-							ELSE -1
-						END
-				END AS max_char_size,
-				CASE a.atttypid
-					WHEN 21 THEN 16
-					WHEN 23 THEN 32
-					WHEN 20 THEN 64
-					WHEN 1700 THEN
+					a.attname AS column_name, a.attnum AS column_index, 
+					(a.atttypid::regtype)::text AS regtype, a.attnotnull AS notnull,
+					format_type(a.atttypid, a.atttypmod) AS data_type, a.attndims AS dims,
 					CASE
-						WHEN a.atttypmod = (-1) THEN NULL::integer
-						ELSE ((a.atttypmod - 4) >> 16) & 65535
-					END
-					WHEN 700 THEN 24
-					WHEN 701 THEN 53
-					ELSE NULL::integer
-				END AS numeric_precision,
-				CASE
-					WHEN a.atttypid = ANY (ARRAY[21::oid, 23::oid, 20::oid]) THEN 0
-					WHEN a.atttypid = 1700::oid THEN
+						WHEN a.atttypid = ANY (ARRAY[1042::oid, 1043::oid, 1015::oid]) THEN
+							CASE 
+								WHEN a.atttypmod > 0 THEN a.atttypmod - 4
+								ELSE -1
+							END
+					END AS max_char_size,
+					CASE a.atttypid
+						WHEN 21 THEN 16
+						WHEN 23 THEN 32
+						WHEN 20 THEN 64
+						WHEN 1700 THEN
 						CASE
 							WHEN a.atttypmod = (-1) THEN NULL::integer
-							ELSE (a.atttypmod - 4) & 65535
+							ELSE ((a.atttypmod - 4) >> 16) & 65535
 						END
-					ELSE NULL::integer
-				END AS numeric_scale,
-				d.adsrc AS default_val,
-				(SELECT col_description(a.attrelid, a.attnum::integer) AS col_description)
-					AS comment
-				FROM pg_class c
-					LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
-					LEFT JOIN pg_tablespace t ON t.oid = c.reltablespace
-					LEFT JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0
-					LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
-				WHERE c.relkind = 'r'::""char"" AND n.nspname NOT IN({0})
-				ORDER BY n.nspname ASC, c.relname ASC, a.attnum ASC",
+						WHEN 700 THEN 24
+						WHEN 701 THEN 53
+						ELSE NULL::integer
+					END AS numeric_precision,
+					CASE
+						WHEN a.atttypid = ANY (ARRAY[21::oid, 23::oid, 20::oid]) THEN 0
+						WHEN a.atttypid = 1700::oid THEN
+							CASE
+								WHEN a.atttypmod = (-1) THEN NULL::integer
+								ELSE (a.atttypmod - 4) & 65535
+							END
+						ELSE NULL::integer
+					END AS numeric_scale,
+					d.adsrc AS default_val,
+					(SELECT col_description(a.attrelid, a.attnum::integer) AS col_description)
+						AS comment
+					FROM pg_class c
+						LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
+						LEFT JOIN pg_tablespace t ON t.oid = c.reltablespace
+						LEFT JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0
+						LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+					WHERE c.relkind = 'r'::""char"" AND n.nspname NOT IN({0})
+					ORDER BY n.nspname ASC, c.relname ASC, a.attnum ASC",
 					inList);
 
 			#endregion
@@ -272,7 +271,7 @@ namespace ConvertPG2SS.Helpers
 						WHEN typbasetype = ANY (ARRAY[1042::oid, 1043::oid, 1015::oid]) THEN
 						CASE 
 							WHEN typtypmod > 0 THEN typtypmod - 4
-							ELSE NULL::integer
+							ELSE -1
 						END
 					END AS max_char_size,
 					CASE typbasetype
@@ -337,12 +336,8 @@ namespace ConvertPG2SS.Helpers
 		/// <summary>
 		/// 
 		/// </summary>
-		private static void CreateSequenceTable()
+		private static void CreateSequenceTable(string inList)
 		{
-			var inclPublic = bool.Parse(_params[Parameters.PostgresIncludePublic].ToString());
-			var inList = "'pg_catalog', 'information_schema'";
-			if (!inclPublic) inList += ", 'public'";
-
 			var sql =
 				string.Format(
 					CultureInfo.InvariantCulture,
@@ -526,6 +521,43 @@ namespace ConvertPG2SS.Helpers
 				da.Fill(dt);
 			}
 			catch (NpgsqlException ex) {
+				_log.WriteEx('E', Constants.LogTsType, ex);
+			}
+			finally { da?.Dispose(); }
+		}
+
+		/// <summary>
+		/// 
+		/// </summary>
+		private static void CreateCheckTable(string inList)
+		{
+			var sql =
+				string.Format(
+					CultureInfo.InvariantCulture,
+					@"SELECT n.nspname AS schema_name, c.relname AS table_name,
+					a.attname AS column_name, (a.atttypid::regtype)::text AS regtype, 
+					a.attnum AS column_index, o.consrc AS check_source
+					FROM pg_class c
+						JOIN pg_namespace n ON n.oid = c.relnamespace
+						JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0
+						JOIN pg_constraint o ON o.conrelid = c.oid AND o.contype = 'c'::""char"" 
+							 AND a.attnum = o.conkey[1]
+					WHERE c.relkind = 'r'::""char"" AND n.nspname NOT IN({0})
+					ORDER BY n.nspname ASC, c.relname ASC, a.attnum ASC; ",
+					inList);
+
+			var tblDict = ((Dictionary<string, DataTable>)_params[Constants.PgTables]);
+			var dt = tblDict[Constants.PgCheckTable];
+
+			NpgsqlDataAdapter da = null;
+
+			try
+			{
+				da = new NpgsqlDataAdapter(sql, _pgConn);
+				da.Fill(dt);
+			}
+			catch (NpgsqlException ex)
+			{
 				_log.WriteEx('E', Constants.LogTsType, ex);
 			}
 			finally { da?.Dispose(); }

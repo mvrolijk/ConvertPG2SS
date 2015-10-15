@@ -90,7 +90,8 @@ namespace ConvertPG2SS.Services
 				{Constants.PgSchemaTable, new DataTable(Constants.PgSchemaTable)},
 				{Constants.PgTypeTable, new DataTable(Constants.PgTypeTable)},
 				{Constants.PgSeqTable, new DataTable(Constants.PgSeqTable)},
-				{Constants.PgFkTable, new DataTable(Constants.PgFkTable)}
+				{Constants.PgFkTable, new DataTable(Constants.PgFkTable)},
+				{Constants.PgCheckTable, new DataTable(Constants.PgCheckTable)}
 			};
 			_param.Add(Constants.PgTables, tblDict);
 		}

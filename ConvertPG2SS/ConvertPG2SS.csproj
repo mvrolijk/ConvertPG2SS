@@ -75,6 +75,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Common\Constants.cs" />
+    <Compile Include="Common\ColumnInfo.cs" />
+    <Compile Include="Common\DefaultValue.cs" />
     <Compile Include="Common\Parameters.cs" />
     <Compile Include="Helpers\CryptoAes.cs" />
     <Compile Include="Helpers\Postgres.cs" />

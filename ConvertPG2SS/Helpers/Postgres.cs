@@ -141,7 +141,7 @@ namespace ConvertPG2SS.Helpers
 		/// <param name="schema"></param>
 		/// <param name="def"></param>
 		/// <returns></returns>
-		internal static string SsDefaultValue(string schema, string def)
+		internal static DefaultValue SsDefaultValue(string schema, string def)
 		{
 			string typ;
 			string val;
@@ -165,20 +165,27 @@ namespace ConvertPG2SS.Helpers
 				val = def;
 			}
 
+			var defType = new DefaultValue {Type = DefaultValue.ValueType};
+
 			switch (typ)
 			{
 				case "":
 					switch (val)
 					{
 						case "now()":
-							return "GETDATE()";
+							defType.Value = "GETDATE()";
+							break;
 						case "false":
-							return "0";
+							defType.Value = "0";
+							break;
 						case "true":
-							return "1";
+							defType.Value = "1";
+							break;
 						default:
-							return val;
+							defType.Value = val;
+							break;
 					}
+					break;
 				case "bpchar":
 				case "date":
 				case "timestamp without time zone":
@@ -186,10 +193,14 @@ namespace ConvertPG2SS.Helpers
 				case "character varying":
 				case "interval":
 				case "text":
-					return val;
+					defType.Value = val;
+					break;
 				default:
-					return "";
+					defType.Value = "";
+					break;
 			}
+
+			return defType;
 		}
 
 		/// <summary>
@@ -198,12 +209,19 @@ namespace ConvertPG2SS.Helpers
 		/// <param name="schema"></param>
 		/// <param name="def"></param>
 		/// <returns></returns>
-		private static string Sequence(string schema, string def)
+		private static DefaultValue Sequence(string schema, string def)
 		{
 			var b = def.IndexOf("'", StringComparison.Ordinal);
 			var e = def.IndexOf("'", b + 1, StringComparison.Ordinal);
 			var seq = def.Substring(b + 1, e - b - 1);
-			return "NEXT VALUE FOR [" + schema + "].[" + seq + "]";
+
+			var defType = new DefaultValue
+			{
+				Type = DefaultValue.SequenceType,
+				Value = "NEXT VALUE FOR [" + schema + "].[" + seq + "]"
+			};
+
+			return defType;
 		}
 
 		/// <summary>

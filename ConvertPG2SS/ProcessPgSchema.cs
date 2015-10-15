@@ -31,7 +31,6 @@ using System.Data;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading;
 using ConvertPG2SS.Common;
 using ConvertPG2SS.Helpers;
 using ConvertPG2SS.Interfaces;
@@ -43,14 +42,6 @@ namespace ConvertPG2SS
 	{
 		private static IBLogger _log;
 		private static IParameters _params;
-
-		// Column info array index
-		private static int SchemaName => 0;
-		private static int TableName => 1;
-		private static int ColumnName => 2;
-		private static int DataType => 3;
-		private static int DefaultValue => 4;
-		private static int Comment => 5;
 
 		/// <summary>
 		///     Generate the scripts.
@@ -136,7 +127,6 @@ namespace ConvertPG2SS
 				swCreate.WriteBeginTrans();
 				swDrop.WriteBeginTrans();
 
-				// TODO: 2015-10-10: fix varchar bug -> shuold become varchar(max).
 				// Write CREATE TYPE statements.
 				foreach (DataRow row in dtTypes.Rows)
 				{
@@ -233,7 +223,7 @@ namespace ConvertPG2SS
 
 				var savedSchema = "";
 				var savedTable = "";
-				var defaults = new List<string[]>();
+				var colInfo = new List<ColumnInfo>();
 
 				foreach (DataRow row in dt.Rows)
 				{
@@ -245,8 +235,8 @@ namespace ConvertPG2SS
 					{
 						if (!string.IsNullOrEmpty(savedTable))
 						{
-							CloseCreateTable(swCreate, defaults);
-							defaults.Clear();
+							CloseCreateTable(swCreate, colInfo);
+							colInfo.Clear();
 						}
 						savedSchema = schema;
 						savedTable = table;
@@ -258,16 +248,19 @@ namespace ConvertPG2SS
 					else swCreate.WriteLine(",");
 
 					// Generate column definition.
-					string[] def;
+					ColumnInfo tmpColInfo;
 
-					swCreate.GenerateColumn(row, out def);
-					if (!string.IsNullOrEmpty(def[SchemaName])) defaults.Add(def);
+					swCreate.GenerateColumn(row, out tmpColInfo);
+					if (!string.IsNullOrEmpty(tmpColInfo.Schema))
+					{
+						colInfo.Add(tmpColInfo);
+					}
 				}
 
 				if (string.IsNullOrEmpty(savedSchema)) return;
 
 				// Complete last writes.
-				swCreate.CloseCreateTable(defaults);
+				swCreate.CloseCreateTable(colInfo);
 				swCreate.WriteTableDesc(conn);
 				swCreate.WriteCommitTrans();
 				swDrop.WriteCommitTrans();
@@ -289,16 +282,15 @@ namespace ConvertPG2SS
 		/// </summary>
 		/// <param name="tw"></param>
 		/// <param name="row"></param>
-		/// <param name="def"></param>
+		/// <param name="colInfo"></param>
 		private static void GenerateColumn(
 			this TextWriter tw,
 			DataRow row,
-			out string[] def)
+			out ColumnInfo colInfo)
 		{
 			var sb = new StringBuilder();
 			var fmt = "";
 			var ext = "";
-			var tmpDef = new string[6];
 			int aryDim;
 
 			if (row["dim_size"] != DBNull.Value) aryDim = (int) row["dim_size"];
@@ -318,6 +310,8 @@ namespace ConvertPG2SS
 			var dataType = Postgres.SsDataType(regType);
 			if (string.IsNullOrEmpty(dataType)) dataType = regType;
 
+			var tmpColInfo = new ColumnInfo();
+
 			// Generate column definition.
 			for (var i = 0; i <= aryDim; i++)
 			{
@@ -332,24 +326,31 @@ namespace ConvertPG2SS
 				if (i == 0)
 				{
 					// Store information to generate default and comment definitions later.
-					if (row["default_val"] != DBNull.Value || row["comment"] != DBNull.Value)
+					tmpColInfo.Schema = row["schema_name"].ToString();
+					tmpColInfo.Table = row["table_name"].ToString();
+					tmpColInfo.Column = row["column_name"] + ext;
+					tmpColInfo.DataType = dataType;
+					if (row["default_val"] != DBNull.Value)
 					{
-						tmpDef[SchemaName] = row["schema_name"].ToString();
-						tmpDef[TableName] = row["table_name"].ToString();
-						tmpDef[ColumnName] = row["column_name"] + ext;
-						tmpDef[DataType] = dataType;
-						if (row["default_val"] != DBNull.Value)
-							tmpDef[DefaultValue] = row["default_val"].ToString();
-						if (row["comment"] != DBNull.Value)
-							tmpDef[Comment] = row["comment"].ToString();
+						tmpColInfo.Default = 
+							Postgres.SsDefaultValue(tmpColInfo.Schema, row["default_val"].ToString());
+						if (string.IsNullOrEmpty(tmpColInfo.Default.Value))
+						{
+							var tmpStr = 
+								tmpColInfo.Schema + "." + tmpColInfo.Table + "." + tmpColInfo.Column;
+							_log.Write('W',Constants.LogTsType, tmpStr + ":");
+							_log.Write('W', Constants.LogTsType, row["default_val"].ToString(), 1);
+						}
 					}
+					if (row["comment"] != DBNull.Value)
+						tmpColInfo.Comment = row["comment"].ToString();
 				}
 
 				tw.Write(sb.ToString());
 				sb.Clear();
 			}
 
-			def = tmpDef;
+			colInfo = tmpColInfo;
 		}
 
 		/// <summary>
@@ -431,19 +432,19 @@ namespace ConvertPG2SS
 		///     Write the CREATE TABLE closing.
 		/// </summary>
 		/// <param name="tw"></param>
-		/// <param name="defaults"></param>
+		/// <param name="colInfo"></param>
 		private static void CloseCreateTable(
 			this TextWriter tw,
-			IReadOnlyCollection<string[]> defaults)
+			List<ColumnInfo> colInfo)
 		{
 			tw.WriteLine();
 			tw.WriteLine(") ON [PRIMARY]");
 			tw.WriteLine("GO");
 			tw.WriteLine();
 
-			if (defaults.Count == 0) return;
-			tw.WriteDefaults(defaults);
-			tw.WriteColumnComments(defaults);
+			if (colInfo.Count == 0) return;
+			tw.WriteDefaults(colInfo);
+			tw.WriteColumnComments(colInfo);
 		}
 
 
@@ -476,18 +477,12 @@ namespace ConvertPG2SS
 		///     Add default constraints for table. 
 		/// </summary>
 		/// <param name="tw"></param>
-		/// <param name="defaults"></param>
-		private static void WriteDefaults(this TextWriter tw, IEnumerable<string[]> defaults)
+		/// <param name="colInfo"></param>
+		private static void WriteDefaults(this TextWriter tw, IEnumerable<ColumnInfo> colInfo)
 		{
 			var first = true;
 
-			foreach (var def in defaults)
-			{
-				if (string.IsNullOrEmpty(def[DefaultValue])) continue;
-
-				var defVal = Postgres.SsDefaultValue(def[SchemaName], def[DefaultValue]);
-				if (string.IsNullOrEmpty(defVal)) continue;
-
+			foreach (var col in colInfo.Where(col => !string.IsNullOrEmpty(col.Default?.Value))) {
 				if (first)
 				{
 					tw.WriteLine("SET ANSI_PADDING OFF");
@@ -496,10 +491,10 @@ namespace ConvertPG2SS
 					first = false;
 				}
 
-				tw.Write("ALTER TABLE [" + def[SchemaName] + "].[");
-				tw.Write(def[TableName] + "] ADD CONSTRAINT DF_");
-				tw.Write(def[TableName] + "_" + def[ColumnName] + " DEFAULT ");
-				tw.WriteLine("(" + defVal + ") FOR [" + def[ColumnName] + "]");
+				tw.Write("ALTER TABLE [" + col.Schema + "].[");
+				tw.Write(col.Table + "] ADD CONSTRAINT DF_");
+				tw.Write(col.Table + "_" + col.Column + " DEFAULT ");
+				tw.WriteLine("(" + col.Default.Value + ") FOR [" + col.Column + "]");
 				tw.WriteLine("GO");
 				tw.WriteLine();
 			}
@@ -509,21 +504,21 @@ namespace ConvertPG2SS
 		///     Write the column comments.
 		/// </summary>
 		/// <param name="tw"></param>
-		/// <param name="defaults"></param>
+		/// <param name="colInfo"></param>
 		private static void WriteColumnComments(
 			this TextWriter tw,
-			IEnumerable<string[]> defaults)
+			IEnumerable<ColumnInfo> colInfo)
 		{
-			foreach (var def in defaults.Where(def => !string.IsNullOrEmpty(def[Comment])))
+			foreach (var col in colInfo.Where(def => !string.IsNullOrEmpty(def.Comment)))
 			{
 				tw.Write("EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'");
-				tw.WriteLine(General.SanitizeString(def[Comment]) + "' ,");
+				tw.WriteLine(General.SanitizeString(col.Comment) + "' ,");
 				tw.Write("@level0type=N'SCHEMA',@level0name=N'");
-				tw.WriteLine(def[SchemaName] + "' ,");
+				tw.WriteLine(col.Schema + "' ,");
 				tw.Write("@level1type=N'TABLE',@level1name=N'");
-				tw.WriteLine(def[TableName] + "' ,");
+				tw.WriteLine(col.Table + "' ,");
 				tw.Write("@level2type=N'COLUMN',@level2name=N'");
-				tw.WriteLine(def[ColumnName] + "'");
+				tw.WriteLine(col.Column + "'");
 				tw.WriteLine("GO");
 				tw.WriteLine();
 			}
@@ -612,7 +607,6 @@ namespace ConvertPG2SS
 				{
 					var sb = new StringBuilder();
 
-					// TODO: 2015-09-25: handle ASC, DESC, NULL FIRST options.
 					while (reader.Read())
 					{
 						var schema = reader["schema_name"].ToString();
@@ -621,15 +615,15 @@ namespace ConvertPG2SS
 
 						// Schema, table or index changed: close index defenition.
 						if (!savedSchema.Equals(schema) || !savedTable.Equals(table)
-						    || !savedIndex.Equals(index))
+							|| !savedIndex.Equals(index))
 						{
 							if (sb.Length > 0)
-								sw.WriteIndex
-									(savedSchema,
-										savedTable,
-										savedIndex,
-										savedType,
-										sb.ToString());
+								sw.WriteIndex(
+									savedSchema,
+									savedTable,
+									savedIndex,
+									savedType,
+									sb.ToString());
 							sb.Clear();
 
 							savedSchema = schema;
@@ -643,6 +637,17 @@ namespace ConvertPG2SS
 						else sb.Append(", ");
 
 						sb.Append("[" + reader["column_name"] + "]");
+
+						if (reader["option"] == DBNull.Value) continue;
+						switch ((short) reader["option"])
+						{
+							case 0:
+								sb.Append(" ASC");
+								break;
+							case 1:
+								sb.Append(" DESC");
+								break;
+						}
 					}
 
 					if (sb.Length > 0)
