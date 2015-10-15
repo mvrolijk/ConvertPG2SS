@@ -152,14 +152,14 @@ namespace ConvertPG2SS
 			{
 				sql = string.Format(
 					CultureInfo.InvariantCulture,
-					"SELECT * FROM {0}.\"{1}\" LIMIT {2}",
+					"SELECT * FROM \"{0}\".\"{1}\" LIMIT {2}",
 					schema, table, limit);
 			}
 			else
 			{
 				sql = string.Format(
 					CultureInfo.InvariantCulture,
-					"SELECT * FROM {0}.\"{1}\"",
+					"SELECT * FROM \"{0}\".\"{1}\"",
 					schema, table);
 			}
 
@@ -291,8 +291,12 @@ namespace ConvertPG2SS
 		/// <returns></returns>
 		private static string ImportFile(string schema, string table)
 		{
-			return Path.Combine(
-				_params[Parameters.OtherDumpPath].ToString(), schema + "_" + table + ".tsv");
+			var tmpPath = Path.Combine(
+				_params[Parameters.OtherDumpPath].ToString(), 
+				schema + "_" + table + ".tsv")
+				.ToLowerInvariant();
+
+			return tmpPath.Replace(' ', '_');
 		}
 	}
 }

@@ -11,7 +11,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Fixed (MAX) bug for user-defined types.
 - Fixed ASC or DESC inclusion in indeces where required.
 - Fixed sequence data type and maximum value.
-- Put table names in double quotation marks in case the name is not PG kosher. 
+- Put table & schema names in double quotation marks in case the name is not PG 
+kosher. 
 
 ## [0.0.9] - 2015-10-12
 ### Added
