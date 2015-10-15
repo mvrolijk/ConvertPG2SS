@@ -38,6 +38,7 @@ using Npgsql;
 
 namespace ConvertPG2SS
 {
+	// TODO: 2015-10-15: breakdown long mwthods.
 	internal static class ProcessPgSchema
 	{
 		private static IBLogger _log;
@@ -69,12 +70,12 @@ namespace ConvertPG2SS
 			var seqTable = tblDict[Constants.PgSeqTable];
 			var fkTable = tblDict[Constants.PgFkTable];
 
-			if (typeTable.Rows.Count > 0 || seqTable.Rows.Count > 0)
-				GenerateTypeScripts(typeTable, seqTable);
-
-			GenerateTableScripts(schemaTable, frmConn);
+			GenerateTableScripts(schemaTable, seqTable, frmConn);
 			GenerateBuildIndexes(frmConn);
 			GenerateFkConstraints(fkTable);
+
+			if (typeTable.Rows.Count > 0 || seqTable.Rows.Count > 0)
+				GenerateTypeScripts(typeTable, seqTable);
 
 			return true;
 		}
@@ -154,10 +155,14 @@ namespace ConvertPG2SS
 						? Constants.SsDefaultSchema
 						: row["schema_name"].ToString();
 					var seqName = "[" + schema + "].[" + row["seq_name"] + "]";
+					var dataType = Postgres.SsDataType(row["regtype"].ToString());
+
+					var maxValue = Postgres.GetMaxValByType(dataType);
+					var maxValueRec = (long) row["max_value"];
+					maxValue = maxValueRec > maxValue ? maxValue : maxValueRec;
 
 					swCreate.WriteLine("CREATE SEQUENCE " + seqName);
-					swCreate.Write(Constants.Tab + "AS [");
-					swCreate.WriteLine(Postgres.GetTypeByMaxVal((long) row["max_value"]) + "]");
+					swCreate.WriteLine(Constants.Tab + "AS [" + dataType + "]");
 					swCreate.Write(Constants.Tab + "START WITH ");
 					swCreate.WriteLine(row["start_value"]);
 					swCreate.Write(Constants.Tab + "INCREMENT BY ");
@@ -165,7 +170,7 @@ namespace ConvertPG2SS
 					swCreate.Write(Constants.Tab + "MINVALUE ");
 					swCreate.WriteLine(row["min_value"]);
 					swCreate.Write(Constants.Tab + "MAXVALUE ");
-					swCreate.WriteLine(row["max_value"]);
+					swCreate.WriteLine(maxValue);
 
 					swCreate.WriteLine(
 						Constants.Tab + ((bool) row["is_cycled"] ? "CYCLE" : "NO CYCLE"));
@@ -195,9 +200,13 @@ namespace ConvertPG2SS
 		/// <summary>
 		///     Generate the SQL Server scripts.
 		/// </summary>
-		/// <param name="dt">DataTable with all the PostgreSQL schema/table/column info.</param>
+		/// <param name="schemaTable">DataTable with all the PostgreSQL schema/table/column info.</param>
+		/// <param name="seqTable"></param>
 		/// <param name="conn">PG connection.</param>
-		private static void GenerateTableScripts(DataTable dt, NpgsqlConnection conn)
+		private static void GenerateTableScripts(
+			DataTable schemaTable,
+			DataTable seqTable, 
+			NpgsqlConnection conn)
 		{
 			var createPath = Path.Combine(
 				_params[Parameters.OtherWorkPath].ToString(), Constants.CreateTables);
@@ -225,7 +234,7 @@ namespace ConvertPG2SS
 				var savedTable = "";
 				var colInfo = new List<ColumnInfo>();
 
-				foreach (DataRow row in dt.Rows)
+				foreach (DataRow row in schemaTable.Rows)
 				{
 					var schema = row["schema_name"].ToString();
 					var table = row["table_name"].ToString();
@@ -236,6 +245,7 @@ namespace ConvertPG2SS
 						if (!string.IsNullOrEmpty(savedTable))
 						{
 							CloseCreateTable(swCreate, colInfo);
+							UpdateSeqTable(colInfo, seqTable);
 							colInfo.Clear();
 						}
 						savedSchema = schema;
@@ -275,6 +285,35 @@ namespace ConvertPG2SS
 				swDrop?.Dispose();
 				swTrunc?.Dispose();
 			}
+		}
+
+		/// <summary>
+		///     Update the sequence data type in the sequence DataTable.
+		/// </summary>
+		/// <param name="colInfo"></param>
+		/// <param name="seqTable"></param>
+		private static void UpdateSeqTable(IEnumerable<ColumnInfo> colInfo, DataTable seqTable)
+		{
+			var j = colInfo.Where(col =>
+				col.Default != null && col.Default.Type == ColumnInfo.SequenceType);
+			if (!j.Any()) return;
+
+			var items =
+				from seq in seqTable.AsEnumerable()
+				join col in j
+					on new
+					{
+						schema = seq.Field<string>("schema_name"),
+						seqName = seq.Field<string>("seq_name")
+					}
+					equals new
+					{
+						schema = col.Schema,
+						seqName = col.Default.Sequence
+					}
+				select new { seq, col };
+
+			foreach (var item in items) item.seq["regtype"] = item.col.DataType;
 		}
 
 		/// <summary>

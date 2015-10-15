@@ -35,5 +35,6 @@ namespace ConvertPG2SS.Common
 
 		public char Type { get; set; }
 		public string Value { get; set; }
+		public string Sequence { get; set; }
 	}
 }

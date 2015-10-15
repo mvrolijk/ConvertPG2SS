@@ -366,6 +366,7 @@ namespace ConvertPG2SS.Helpers
 			if (dt.Rows.Count == 0) return;
 
 			// Add sequence specification columns.
+			dt.Columns.Add("regtype", typeof (string));
 			dt.Columns.Add("last_value", typeof (long));
 			dt.Columns.Add("start_value", typeof (long));
 			dt.Columns.Add("increment_by", typeof (long));

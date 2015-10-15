@@ -152,14 +152,14 @@ namespace ConvertPG2SS
 			{
 				sql = string.Format(
 					CultureInfo.InvariantCulture,
-					"SELECT * FROM {0}.{1} LIMIT {2}",
+					"SELECT * FROM {0}.\"{1}\" LIMIT {2}",
 					schema, table, limit);
 			}
 			else
 			{
 				sql = string.Format(
 					CultureInfo.InvariantCulture,
-					"SELECT * FROM {0}.{1}",
+					"SELECT * FROM {0}.\"{1}\"",
 					schema, table);
 			}
 
@@ -192,6 +192,7 @@ namespace ConvertPG2SS
 			}
 			catch (NpgsqlException ex) {
 				_log.WriteEx('F', Constants.LogTsType, ex);
+				throw;
 			}
 			finally
 			{

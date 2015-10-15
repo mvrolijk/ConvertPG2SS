@@ -218,22 +218,30 @@ namespace ConvertPG2SS.Helpers
 			var defType = new DefaultValue
 			{
 				Type = DefaultValue.SequenceType,
-				Value = "NEXT VALUE FOR [" + schema + "].[" + seq + "]"
+				Value = "NEXT VALUE FOR [" + schema + "].[" + seq + "]",
+				Sequence = seq
+				
 			};
 
 			return defType;
 		}
 
 		/// <summary>
-		///     Return a SS data type based on a maximum value.
+		///     Return a maximum value depending on the SS data type.
 		/// </summary>
-		/// <param name="maxVal">Maximun value</param>
-		/// <returns>SS data type</returns>
-		internal static string GetTypeByMaxVal(long maxVal)
+		/// <returns>Maximum value</returns>
+		internal static long GetMaxValByType(string dataType)
 		{
-			if (maxVal <= 255) return "tinyint";
-			if (maxVal <= short.MaxValue) return "smallint";
-			return maxVal <= int.MaxValue ? "int" : "bigint";
+			switch (dataType)
+			{
+				case "smallint":
+					return short.MaxValue;
+				case "integer":
+					return int.MaxValue;
+				case "bigint":
+					return long.MaxValue;
+			}
+			return -1;
 		}
 	}
 }
