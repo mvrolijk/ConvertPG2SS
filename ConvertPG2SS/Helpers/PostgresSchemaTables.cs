@@ -113,7 +113,8 @@ namespace ConvertPG2SS.Helpers
 						LEFT JOIN pg_tablespace t ON t.oid = c.reltablespace
 						LEFT JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0
 						LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
-					WHERE c.relkind = 'r'::""char"" AND n.nspname NOT IN({0})
+					WHERE c.relkind = 'r'::""char"" AND (a.atttypid::regtype)::text <> '-'
+						  AND n.nspname NOT IN({0})
 					ORDER BY n.nspname ASC, c.relname ASC, a.attnum ASC",
 					inList);
 

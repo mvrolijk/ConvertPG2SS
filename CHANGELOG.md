@@ -2,6 +2,11 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## [0.0.11] - 2015-10-26
+### Changed
+- Removed pg.dropped column inclusions in Helpers\PostgresSchemaTables.cs:CreateSchemaTable
+method.
+
 ## [0.0.10] - 2015-10-15
 ### Added
 - Checks table. Parsing is still buggy though.
